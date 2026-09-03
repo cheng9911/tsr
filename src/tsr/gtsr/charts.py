@@ -11,7 +11,36 @@ from numpy import pi
 from ..utils import EPSILON, wrap_to_interval
 from ._validation import finite_matrix, finite_vector, rotation_matrix, se3_transform
 from .domains import CoordinateDomain
-from .metrics import se3_exp
+from .metrics import se3_adjoint, se3_exp
+
+
+_CANONICAL_AXES = np.array(
+    [
+        [1, 0, 0, 0, 0, 0],  # x
+        [0, 1, 0, 0, 0, 0],  # y
+        [0, 0, 1, 0, 0, 0],  # z
+        [0, 0, 0, 1, 0, 0],  # roll (Rx)
+        [0, 0, 0, 0, 1, 0],  # pitch (Ry)
+        [0, 0, 0, 0, 0, 1],  # yaw (Rz)
+    ]
+)
+_CANONICAL_ORDER = (0, 1, 2, 5, 4, 3)  # forward 顺序：Trans, Rz, Ry, Rx
+
+
+def _body_jacobian(axes, order, representation, M, z):
+    """Body-frame Jacobian (6, m); column i = (T(z)^-1 dT(z)/dz_i)^vee.
+
+    SPACE: J_i = Ad_{(Exp(S_i z_i) ... Exp(S_m z_m) M)^-1}(S_i)
+    BODY:  J_i = Ad_{(Exp(B_i z_i) ... Exp(B_m z_m))^-1}(B_i)
+    """
+    m = len(order)
+    J = np.zeros((6, m))
+    right = M.copy() if representation == "space" else np.eye(4)
+    for k in reversed(range(m)):
+        idx = order[k]
+        right = se3_exp(axes[idx] * z[idx]) @ right
+        J[:, idx] = se3_adjoint(np.linalg.inv(right)) @ axes[idx]
+    return J
 
 
 class GeneratorChart(ABC):
@@ -39,6 +68,10 @@ class CanonicalTSRChart(GeneratorChart):
 
     def forward(self, z):
         return self.xyzrpy_to_trans(z)
+
+    def jacobian(self, z):
+        z = finite_vector(z, self.dim, "z")
+        return _body_jacobian(_CANONICAL_AXES, _CANONICAL_ORDER, "space", np.eye(4), z)
 
     @staticmethod
     def xyzrpy_to_trans(xyzrpy):
@@ -301,3 +334,7 @@ class PoEChart(GeneratorChart):
             for idx in self._order:
                 T = T @ se3_exp(self._axes[idx] * z[idx])
         return T
+
+    def jacobian(self, z):
+        z = finite_vector(z, self.dim, "z")
+        return _body_jacobian(self._axes, self._order, self._representation, self._M, z)

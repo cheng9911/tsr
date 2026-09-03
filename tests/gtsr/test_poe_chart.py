@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from tsr.gtsr.charts import PoEChart
-from tsr.gtsr.metrics import se3_adjoint, se3_exp
+from tsr.gtsr.metrics import se3_adjoint, se3_exp, se3_vee
 
 
 def _rotz(a):
@@ -110,3 +110,49 @@ def test_G08_se3_sanity_all_outputs():
         np.testing.assert_allclose(T[3, :], [0, 0, 0, 1], atol=1e-12)
         np.testing.assert_allclose(T[:3, :3].T @ T[:3, :3], np.eye(3), atol=1e-12)
         assert np.linalg.det(T[:3, :3]) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_G09_jacobian_matches_central_finite_difference():
+    axes = [
+        [0.2, 0.1, 0.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.15, 1.0, 0.0, 0.0],
+        [0.0, 0.1, 0.0, 0.0, 1.0, 0.0],
+    ]
+    for representation in ("space", "body"):
+        chart = PoEChart(axes, representation=representation)
+        rng = np.random.default_rng(42)
+        for _ in range(10):
+            z = rng.normal(size=3)
+            J = chart.jacobian(z)
+            assert J.shape == (6, 3)
+            J_fd = np.zeros((6, 3))
+            h = 1e-6
+            for i in range(3):
+                d = np.zeros(3)
+                d[i] = h
+                Tp = chart.forward(z + d)
+                Tm = chart.forward(z - d)
+                J_fd[:, i] = se3_vee(
+                    np.linalg.inv(chart.forward(z)) @ (Tp - Tm)
+                ) / (2 * h)
+            np.testing.assert_allclose(J, J_fd, atol=1e-6)
+
+
+def test_G09_canonical_chart_jacobian_matches_central_finite_difference():
+    from tsr.gtsr.charts import CanonicalTSRChart
+
+    chart = CanonicalTSRChart()
+    rng = np.random.default_rng(20260902)
+    for _ in range(10):
+        z = rng.normal(size=6)
+        J = chart.jacobian(z)
+        assert J.shape == (6, 6)
+        J_fd = np.zeros((6, 6))
+        h = 1e-6
+        for i in range(6):
+            d = np.zeros(6)
+            d[i] = h
+            J_fd[:, i] = se3_vee(
+                np.linalg.inv(chart.forward(z)) @ (chart.forward(z + d) - chart.forward(z - d))
+            ) / (2 * h)
+        np.testing.assert_allclose(J, J_fd, atol=1e-6)
