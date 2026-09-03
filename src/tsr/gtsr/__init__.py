@@ -3,6 +3,14 @@
 
 """Generalized Task Space Region (G-TSR) geometry kernel."""
 
+from .charts import CanonicalTSRChart, GeneratorChart
 from .domains import CircularInterval, CoordinateDomain, Interval, LinearInterval
 
-__all__ = ["Interval", "LinearInterval", "CircularInterval", "CoordinateDomain"]
+__all__ = [
+    "Interval",
+    "LinearInterval",
+    "CircularInterval",
+    "CoordinateDomain",
+    "GeneratorChart",
+    "CanonicalTSRChart",
+]
