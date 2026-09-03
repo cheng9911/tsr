@@ -12,6 +12,7 @@ from .charts import CanonicalTSRChart, GeneratorChart
 from .domains import CoordinateDomain
 
 NANBW = np.ones(6) * float("nan")
+_UNSET = object()
 
 
 class GTSR:
@@ -199,18 +200,22 @@ class GTSR:
         Bw_sample[3:6] = wrap_to_interval(Bw_sample[3:6])
         return Bw_sample
 
-    def sample(self, partial=None, rng=None):
+    def sample(self, xyzrpy=_UNSET, rng=None, *, partial=_UNSET):
+        if xyzrpy is not _UNSET and partial is not _UNSET:
+            raise TypeError("sample accepts either xyzrpy or partial, not both")
+        coordinates = partial if partial is not _UNSET else xyzrpy
+
         if isinstance(self.chart, CanonicalTSRChart):
-            xyzrpy = NANBW if partial is None else partial
-            return self.to_transform(self.sample_xyzrpy(xyzrpy, rng=rng))
+            coordinates = NANBW if coordinates is _UNSET or coordinates is None else coordinates
+            return self.to_transform(self.sample_xyzrpy(coordinates, rng=rng))
 
         if rng is None:
             rng = np.random.default_rng()
         if not callable(getattr(rng, "random", None)):
             raise TypeError("rng must provide a callable random method")
-        if partial is None:
-            partial = np.full(self.chart.dim, np.nan)
-        z = finite_vector(partial, self.chart.dim, "partial", allow_nan=True)
+        if coordinates is _UNSET or coordinates is None:
+            coordinates = np.full(self.chart.dim, np.nan)
+        z = finite_vector(coordinates, self.chart.dim, "partial", allow_nan=True)
         valid = np.array([np.isnan(value) or self.domain.intervals[i].contains(value) for i, value in enumerate(z)])
         if not all(valid):
             violated = np.flatnonzero(~valid).tolist()

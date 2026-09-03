@@ -6,9 +6,10 @@
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares, minimize
 
 from ._validation import se3_transform
+from .charts import CanonicalTSRChart
 from .metrics import SE3Metric, se3_adjoint
 
 
@@ -51,14 +52,21 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
     def T_of_z(z):
         return gtsr.to_transform(z)
 
-    def fg(z):
+    def residual_jacobian(z):
         T_z = T_of_z(z)
         r = metric.error(T_z, T)
         J_local = gtsr.chart.jacobian(z)
         J_full = Ad_Twe_inv @ J_local
         E = metric.error_body_jacobian(T_z, T)
-        grad = 2.0 * J_full.T @ (E.T @ metric.weighted_error(r))
-        return metric.distance_sq(r), grad
+        residual = r.copy()
+        residual[3:6] *= metric.rotation_weight
+        jacobian = E @ J_full
+        jacobian[3:6, :] *= metric.rotation_weight
+        return residual, jacobian
+
+    def fg(z):
+        residual, jacobian = residual_jacobian(z)
+        return float(residual @ residual), 2.0 * jacobian.T @ residual
 
     rng = np.random.default_rng(20260902)
     starts_list = [lower, upper, (lower + upper) / 2.0]
@@ -67,6 +75,10 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
         starts_list = list(starts)
         if not starts_list:
             raise ValueError("starts must contain at least one initial coordinate vector")
+    elif isinstance(gtsr.chart, CanonicalTSRChart):
+        inverse_start = gtsr.to_xyzrpy(T)
+        if all(domain.contains(inverse_start)):
+            starts_list.insert(0, inverse_start)
 
     best_z = None
     best_d = float("inf")
@@ -88,11 +100,43 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
             best_z = z
             best_opt = opt
 
+    refinement = None
+    free = np.flatnonzero(upper > lower + tol_bounds)
+    if maxiter > 0 and free.size:
+
+        def unpack(x):
+            z = best_z.copy()
+            z[free] = x
+            return z
+
+        def residual_free(x):
+            return residual_jacobian(unpack(x))[0]
+
+        def jacobian_free(x):
+            return residual_jacobian(unpack(x))[1][:, free]
+
+        candidate = least_squares(
+            residual_free,
+            best_z[free],
+            jac=jacobian_free,
+            bounds=(lower[free], upper[free]),
+            ftol=1e-14,
+            xtol=1e-14,
+            gtol=1e-14,
+            max_nfev=maxiter,
+        )
+        candidate_z = unpack(candidate.x)
+        candidate_d = float(np.linalg.norm(residual_free(candidate.x)))
+        if np.isfinite(candidate_d) and candidate_d <= best_d:
+            best_z = candidate_z
+            best_d = candidate_d
+            refinement = candidate
+
     g_true = _finite_diff_gradient(fg, best_z, lower, upper, tol_bounds)
     opt_norm = _projected_gradient_norm(g_true, best_z, lower, upper, tol_bounds)
     bounds_ok = bool(np.all(best_z >= lower - tol_bounds) and np.all(best_z <= upper + tol_bounds))
     feasible = bool(bounds_ok and np.all(np.isfinite(best_z)) and np.isfinite(best_d))
-    converged = bool(getattr(best_opt, "success", False))
+    converged = bool(getattr(best_opt, "success", False) or getattr(refinement, "success", False))
     optimal = bool(opt_norm <= tol_opt)
     success = bool(converged and feasible and optimal)
     if success:

@@ -120,9 +120,19 @@ def test_poe_rotational_axes_require_unit_angular_part():
     assert periodic_chart.periods == (2 * np.pi,)
     assert screw_chart.periods == (None,)
 
-    for angular_norm in (0.5, 2.0):
+    eps = np.finfo(float).eps
+    for angular_norm in (np.nextafter(0.0, 1.0), 1e-13, 0.5, 1.0 + 5e-11, 2.0):
         with pytest.raises(ValueError, match="unit angular part"):
             PoEChart([[0, 0, 0, 0, 0, angular_norm]], representation="space")
+
+    near_unit = PoEChart([[0, 0, 32 * eps, 0, 0, 1 + 32 * eps]], representation="space")
+    assert near_unit.periodic == (True,)
+    np.testing.assert_allclose(
+        near_unit.forward([0.3 + 2 * np.pi]),
+        near_unit.forward([0.3]),
+        rtol=0.0,
+        atol=1e-12,
+    )
 
 
 def test_generalized_sample_to_contains_and_partial_coordinates():
@@ -139,10 +149,39 @@ def test_generalized_sample_to_contains_and_partial_coordinates():
 
     expected_rng = np.random.default_rng(20260903)
     expected_z = np.array([0.25, 1.0 + expected_rng.random()])
-    sampled = region.sample([0.25, np.nan], rng=np.random.default_rng(20260903))
+    sampled = region.sample(partial=[0.25, np.nan], rng=np.random.default_rng(20260903))
+    positional_sample = region.sample([0.25, np.nan], rng=np.random.default_rng(20260903))
 
     np.testing.assert_allclose(sampled, region.to_transform(expected_z), atol=1e-15)
+    np.testing.assert_array_equal(positional_sample, sampled)
     assert region.contains(sampled, metric=SE3Metric())
+
+
+def test_high_dimensional_poe_sample_to_contains():
+    rng = np.random.default_rng(9917)
+    axes = []
+    for _ in range(5):
+        w = rng.normal(size=3)
+        w /= np.linalg.norm(w)
+        v = rng.normal(size=3)
+        if abs(v @ w) < 0.1:
+            v += 0.3 * w
+        axes.append(np.hstack((v, w)))
+    v = rng.normal(size=3)
+    v /= np.linalg.norm(v)
+    axes.append(np.hstack((v, np.zeros(3))))
+    chart = PoEChart(axes, representation="space")
+    domain = CoordinateDomain([LinearInterval(-1.2, 1.2) for _ in range(6)])
+    T0_w = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
+    Tw_e = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
+    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
+    metric = SE3Metric(rotation_weight=0.7)
+
+    for _ in range(10):
+        sampled = region.sample(rng=rng)
+        result = region.project(sampled, metric)
+        assert result.distance <= 1e-8
+        assert region.contains(sampled, metric=metric)
 
 
 def test_G08_se3_sanity_all_outputs():

@@ -163,18 +163,82 @@ def test_P07_canonical_sample_is_contained_with_default_generic_tolerance():
             [-np.pi / 4, np.pi / 4],
         ]
     )
-    region = GTSR.canonical(Bw=bounds)
+    T0_w = se3_exp([0.4, -0.3, 0.2, 0.3, -0.2, 0.1])
+    Tw_e = se3_exp([-0.2, 0.1, 0.3, -0.1, 0.25, -0.2])
+    region = GTSR.canonical(T0_w=T0_w, Tw_e=Tw_e, Bw=bounds)
     metric = SE3Metric()
     rng = np.random.default_rng(7)
 
     for _ in range(30):
-        assert region.contains(region.sample(rng=rng), metric=metric)
+        sampled = region.sample(rng=rng)
+        result = region.project(sampled, metric)
+        assert result.distance <= 1e-8
+        assert region.contains(sampled, metric=metric)
 
 
 def test_P07_default_generic_tolerance_rejects_pose_clearly_outside():
     region = _region_1d([1.0, 0.0, 0.0, 0.0, 0.0, 0.0], -1.0, 1.0)
     query = se3_exp([1.0 + 5e-8, 0.0, 0.0, 0.0, 0.0, 0.0])
     assert region.contains(query, metric=SE3Metric()) is False
+
+
+def test_P07_adversarial_four_dimensional_on_region_projection_refines_to_zero():
+    axes = np.array(
+        [
+            [
+                0.3798967875308519,
+                0.38120767877168804,
+                0.8052634576561934,
+                0.9182479662747942,
+                -0.04756885729586143,
+                0.393138494996064,
+            ],
+            [
+                -0.25006825790425286,
+                0.00389918876136935,
+                0.45489446031005,
+                0.7793759086733303,
+                0.08334137480600609,
+                -0.6209890564454946,
+            ],
+            [
+                0.1684538743093157,
+                0.30020351622075714,
+                -0.4325693612178967,
+                0.752912215539425,
+                0.13292586636757228,
+                0.6445571423403395,
+            ],
+            [-0.8497967460288005, -0.18290927999749093, -0.4943578518944165, 0, 0, 0],
+        ]
+    )
+    chart = PoEChart(axes, representation="space")
+    domain = CoordinateDomain([LinearInterval(-2.5, 2.5) for _ in range(4)])
+    T0_w = np.array(
+        [
+            [0.979363433842017, 0.1601168981958359, 0.12332819371626942, 0.4729117433104602],
+            [-0.1983440587935259, 0.8786465094217749, 0.4343270033307174, -0.11002306181593996],
+            [-0.03881879434608561, -0.4498253998976436, 0.8922724980702035, -0.0754394781911677],
+            [0, 0, 0, 1],
+        ]
+    )
+    Tw_e = np.array(
+        [
+            [0.6668969806952015, 0.13115885506431585, -0.7335160338246478, 0.408554815347245],
+            [-0.2258725044783491, 0.9736551663375292, -0.03126065874092364, 0.21998494596870574],
+            [0.7100915637157663, 0.18652874256386365, 0.6789528697466722, -0.05791418680587229],
+            [0, 0, 0, 1],
+        ]
+    )
+    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
+    z = np.array([-0.7787102075745456, -2.221987116055273, 1.3143633499104905, -2.492406061304726])
+    query = region.to_transform(z)
+
+    result = region.project(query, SE3Metric(rotation_weight=0.7))
+
+    assert result.success, result.message
+    assert result.distance <= 1e-8
+    assert region.contains(query, metric=SE3Metric(rotation_weight=0.7))
 
 
 def test_P08_multidim_nonconvex_multistart_kkT():

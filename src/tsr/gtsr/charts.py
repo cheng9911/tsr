@@ -287,8 +287,7 @@ class PoEChart(GeneratorChart):
     home transform (Sprint B restricts to ``M=I`` but the interface is kept).
     """
 
-    _PITCH_TOL = 1e-12
-    _ANGULAR_NORM_RTOL = 1e-10
+    _AXIS_TOL = 64.0 * np.finfo(float).eps
 
     def __init__(self, axes, representation, order=None, M=None):
         axes = np.asarray(axes, dtype=float)
@@ -309,14 +308,15 @@ class PoEChart(GeneratorChart):
         periodic = []
         for xi in axes:
             v, w = xi[0:3], xi[3:6]
-            th = float(np.linalg.norm(w))
-            if th <= self._PITCH_TOL:
+            if not np.any(w != 0.0):
                 periodic.append(False)  # pure translation
             else:
-                if not np.isclose(th, 1.0, rtol=self._ANGULAR_NORM_RTOL, atol=self._PITCH_TOL):
+                scale = float(np.max(np.abs(w)))
+                th = scale * float(np.linalg.norm(w / scale))
+                if not np.isclose(th, 1.0, rtol=0.0, atol=self._AXIS_TOL):
                     raise ValueError(f"rotational screw axes must have a unit angular part (||omega|| ~= 1), got {th}")
                 pitch = float(np.dot(w, v)) / (th * th)
-                periodic.append(abs(pitch) <= self._PITCH_TOL)
+                periodic.append(abs(pitch) <= self._AXIS_TOL)
         periods = tuple(2 * pi if p else None for p in periodic)
         self.coord_names = tuple(f"q{i}" for i in range(m))
         self.periodic = tuple(periodic)

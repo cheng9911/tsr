@@ -98,6 +98,19 @@ def test_legacy_distance_keeps_zero_rotation_weight_compatibility():
     assert distance == 0.0
 
 
+def test_sample_preserves_legacy_xyzrpy_keyword_and_rejects_alias_conflict():
+    bounds = np.column_stack((-np.ones(6), np.ones(6)))
+    region = GTSR.canonical(Bw=bounds)
+    partial = np.array([0.25, np.nan, 0.0, np.nan, 0.1, np.nan])
+
+    expected_z = region.sample_xyzrpy(partial, rng=np.random.default_rng(7))
+    actual = region.sample(xyzrpy=partial, rng=np.random.default_rng(7))
+    np.testing.assert_allclose(actual, region.to_transform(expected_z), atol=1e-15)
+
+    with pytest.raises(TypeError, match="xyzrpy.*partial"):
+        region.sample(xyzrpy=partial, partial=partial, rng=np.random.default_rng(7))
+
+
 def test_generic_chart_composition_is_available_but_legacy_methods_are_restricted():
     region = GTSR(
         chart=OneDimensionalChart(),
