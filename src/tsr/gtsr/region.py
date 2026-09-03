@@ -103,10 +103,10 @@ class GTSR:
         T_local = np.linalg.inv(self.T0_w) @ T @ np.linalg.inv(self.Tw_e)
         return self.chart.coordinates(T_local, self.domain)
 
-    def project(self, T, metric):
+    def project(self, T, metric, *, starts=None):
         from .projection import project as _project
 
-        return _project(self, T, metric)
+        return _project(self, T, metric, starts=starts)
 
     def contains(self, T, metric=None, tol=1e-8):
         if metric is None:

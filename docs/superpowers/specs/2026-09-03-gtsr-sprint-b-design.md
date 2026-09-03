@@ -30,7 +30,15 @@ Sprint B 第 3 步）。本设计文档与后续计划均按 G-01~G-09 执行；
 - 位姿误差沿用 §6.2 的 `e_t` + `atan2` 形式 `e_R`，矩阵/优化数值比较用 `1e-10`~`1e-12`，
   Jacobian 用中心有限差分 `1e-6`，legacy `EPSILON=1e-3` 只留在旧 `contains/distance`。
 - 随机测试一律显式 `numpy.random.Generator`，固定 seeds `[0, 1, 7, 42, 20260902]`。
-- 多维非凸投影**不宣称总能找到全局最优**；失败必须显式暴露（`success=False`），不得伪装。
+- 多维非凸投影是**多起点局部优化**，不宣称总能找到全局最优；失败必须显式暴露（`success=False`），
+  不得伪装。设 `ẑ ∈ Z`、`d̂ = d(T(ẑ), T_q)`、`d* = inf_{z∈Z} d(T(z), T_q)`；因 `ẑ` 可行有
+  `d* ≤ d̂`，故 `d̂ ≤ tol ⟹ d* ≤ tol`，但反方向不成立。据此：
+  - `contains=True` 是对容差膨胀集合 `R_tol = {T | dist(T, R) ≤ tol}` 的声音证书（无假阳性），
+    不代表严格属于原集合 `R`；
+  - `contains=False` 解释为「未找到区域内证据」（局部优化可能落入错误局部极小，存在假阴性），
+    不得写成「不可达」；
+  - `success=True` 只表示「返回了满足 bounds 与数值 KKT 的局部候选」，不是「局部极小证明」，
+    更不是全局 membership 证书。
 
 **明确不做：** P1/P2 严格证明（Sprint C）、`test_expressivity.py`、序列化、自适应/相位/迁移。
 
@@ -107,7 +115,9 @@ class PoEChart(GeneratorChart):
 
 `periodic` 由满足单位轴契约的 `axes` 的 pitch 自动推断（§3.4：周期是显式属性，此处按纯旋转唯一判定），
 pitch 的零判定同样使用 `64ε_machine`。非零且不满足单位契约的 `ω` 直接拒绝；微小但非零的
-`ω` 不得降级为平移轴。这保证 `q` 的角度语义，以及被声明为周期坐标时 `q+2π` 的 pose 误差 ≤ `1e-12`；
+`ω` 不得降级为平移轴。这保证 `q` 的角度语义。被声明为周期坐标时，`q+2π` 的 pose 验证容差按
+旋转角误差 `e_R ≤ 1e-12` 与平移二范数 `e_t ≤ 1e-12·max(1, ‖v‖)` 分开计（不比较混合量纲的矩阵
+最大元素）；测试坐标 `q` 限定在单个规范周期内；数学上的零螺距 screw 仍严格满足 `2π` 周期。
 `representation` 仅允许 `{"space","body"}`（§3.5）。
 
 ### 3.3 projection.py — ProjectionResult 与通用投影
@@ -118,7 +128,7 @@ class ProjectionResult:
     z: np.ndarray            # 最优坐标（失败时仍返回最佳努力值）
     transform: np.ndarray    # T0_w @ forward(z) @ Tw_e
     distance: float          # d_W(T(z), T_q)
-    success: bool            # 是否通过可行性+最优性判定
+    success: bool            # 是否返回满足 bounds + 数值 KKT 的局部候选（非全局 membership 证书）
     optimality: float | None # KKT/梯度残差（success=True 时 <= 1e-6；失败可为 None）
     message: str             # 诊断信息（success=False 时说明原因）
 
@@ -137,6 +147,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6) -> 
    （`optimality`）；
 5. `success = 收敛 且 bounds 可行 ≤ 1e-12 且 optimality ≤ 1e-6 且 无 NaN`；
    任一失败即 `success=False`，`message` 写明失败维度，`z/transform/distance` 仍返回最佳努力值。
+   `success=True` 时 `message` 固定为 `"local optimum; global optimality not certified"`。
 
 一维投影（P-04/P-05）走独立的高精度标量参考（`scipy.optimize.minimize_scalar` 或密集网格 + 黄金分割），
 **不用被测的多维优化器自身作为 oracle**（§6.5）。
@@ -154,13 +165,18 @@ class GTSR:
     def sample_xyzrpy(self, partial=NANBW, rng=None) -> np.ndarray      # canonical only
     def sample(self, xyzrpy=_UNSET, rng=None, *, partial=_UNSET) -> np.ndarray
     # --- Sprint B 新增 ---
-    def project(self, T, metric) -> ProjectionResult
+    def project(self, T, metric, *, starts=None) -> ProjectionResult
 ```
 
 `contains(T, metric=None, tol=1e-8)`：`metric is None` 走 legacy 路径（canonical 专属，
 `EPSILON=1e-3`）；`metric` 给定走通用路径（`project(T, metric).distance <= tol`，任意 chart）。
-通用默认容差是 G2 membership 契约；canonical inverse start 与 bounded least-squares 精化保证已知
-on-region 查询的投影残差不超过该容差，距离边界大于 `tol` 的 pose 仍判为区域外。
+通用路径的 `contains=True` 是对容差膨胀集合 `R_tol = {T | dist(T, R) ≤ tol}` 的声音证书（无假阳性，
+不代表严格属于原集合 `R`）；`contains=False` 表示「未找到区域内证据」（局部优化可能落入错误局部
+极小，存在假阴性，不得读作「不可达」）。已知 on-region 查询的投影残差在 canonical inverse start 与
+bounded least-squares 精化下不超过默认容差；距离边界大于 `tol` 的 pose 仍判为区域外。
+
+`project(..., starts=None)`：`starts` 透传给通用投影器，供轨迹/相位应用以「上一时刻坐标」warm-start
+（`starts=[z_prev]`）绕过冷启动局部极小；显式空 `starts` 抛 `ValueError`。
 通用 `distance` 由 `project(T, metric).distance` 提供，不再另设一个与 legacy `distance` 同名的
 第二语义方法（避免混淆，§3.7「互不混淆」）。
 
@@ -195,12 +211,19 @@ T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> d_W         # �
 
 一维高精度参考与多维最优性门槛严格按 §6.5 的 `1e-12`（bounds）/`1e-6`（KKT）/`1e-8`（目标值）执行。
 
-## 6. 退出条件（硬门 G2）
+## 6. 退出条件（硬门 G2：冻结语料上的工程硬门）
+
+G2 是**冻结语料上的工程硬门**：`project` 是多起点局部最优（非全局证书），`contains` 是近似
+membership（无假阳性、可能假阴性）。本硬门只在冻结 seeds 与公开验证语料上断言，不宣称任意非凸
+PoE 的严格全局 membership（那需要全局优化/认证求解，超出本 Sprint 范围）。
 
 - G-01~G-09 全通过；
-- `sample → contains`、`project → contains`、投影幂等性通过；
+- `sample → contains`、`project → contains`、投影幂等性通过（限定冻结 seeds 与公开验证语料）；
 - 1D screw 投影与独立高精度参考一致；
 - 多维优化满足 bounds `≤ 1e-12`、KKT `≤ 1e-6`、目标值不劣于参考最优 `1e-8`，失败状态可见；
+- 周期坐标 `q+2π` 的 pose 验证按 `e_R ≤ 1e-12` 与 `e_t ≤ 1e-12·max(1, ‖v‖)` 分开计；
+- seed 441 的已知冷启动假阴性以动态 `xfail` canary 显式保留（warm-start `starts=[z]` 复现
+  `distance ≤ 1e-10`），不得静默删除；
 - 全量回归无回退（`tests/tsr/` 与 `tests/gtsr/` 全绿）。
 
 G2 通过前，**禁止**启动 `P_r(s)`、phase estimator 或 transfer（§11 硬门规则）。

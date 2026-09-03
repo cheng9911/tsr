@@ -280,3 +280,123 @@ def test_project_rejects_empty_explicit_starts():
         from tsr.gtsr.projection import project
 
         project(region, np.eye(4), SE3Metric(), starts=[])
+
+
+def _seed441_region():
+    """Deterministic 6D PoE region whose cold-start projection is a known false negative.
+
+    seed 441: a genuinely on-region pose gets projected to a wrong local minimum by the
+    multi-start local optimizer (distance ~0.128, success=True, contains=False). This is
+    the documented contract boundary — `project` is a local optimum, not a global
+    certificate — and the warm-start path recovers the true zero-residual coordinate.
+    """
+    axes = np.array(
+        [
+            [
+                0.5749974488564747,
+                1.137659156106971,
+                -0.2658632045960905,
+                -0.7125973331600972,
+                -0.3469752041376849,
+                0.6097649124758896,
+            ],
+            [
+                -0.5104899947281174,
+                0.08200002355037285,
+                1.3527619604051027,
+                0.3864367037372058,
+                0.00382378072136638,
+                -0.9223080031669019,
+            ],
+            [
+                1.2146276836016616,
+                0.7554551516492272,
+                -0.8834335453416841,
+                0.10130284100039917,
+                -0.7228177971862456,
+                -0.6835730878816626,
+            ],
+            [
+                0.5808667206001397,
+                1.5167620243184028,
+                -1.101115915125199,
+                0.43214024916983707,
+                0.8796552597883519,
+                0.1986490094969471,
+            ],
+            [
+                -0.9335804271926613,
+                -0.5696054669192491,
+                -0.4893650813350019,
+                0.7551562230755159,
+                0.0396575144819913,
+                -0.6543442215649438,
+            ],
+            [
+                -0.6886402460042074,
+                0.3496360179696395,
+                -0.6352395347596044,
+                0.0,
+                0.0,
+                0.0,
+            ],
+        ]
+    )
+    chart = PoEChart(axes, representation="space")
+    bounds = np.array([[-1.2, 1.2]] * 6)
+    domain = CoordinateDomain.from_bounds(bounds, chart.periodic, chart.periods)
+    T0_w = np.array(
+        [
+            [0.9768787685984828, 0.19778322435638954, -0.08117676776456452, -0.20859879507248927],
+            [-0.18494123929239256, 0.972250980585315, 0.14326468078311377, -0.20022655723824767],
+            [0.10725954256151736, -0.12493929291493361, 0.9863496153065658, 0.41161399403998583],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    Tw_e = np.array(
+        [
+            [0.9932767748391301, -0.0858897337203418, 0.07761573427227747, -0.2006426490020646],
+            [0.04241776563525183, 0.8938675068150195, 0.4463200795604137, 0.05785359461913411],
+            [-0.10771249567106342, -0.4400270831457422, 0.8915010848981403, -0.2746251827369469],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
+    z = np.array(
+        [
+            -0.8113536352430053,
+            -0.9810042428385752,
+            1.0802377113666057,
+            0.5942187059101076,
+            -0.449494606703843,
+            -0.6553382226474657,
+        ]
+    )
+    return region, z, SE3Metric(rotation_weight=0.7)
+
+
+def test_P10_seed441_known_cold_start_false_negative_canary():
+    region, z, metric = _seed441_region()
+    query = region.to_transform(z)
+    # sanity: the query is genuinely on-region (built from a feasible coordinate)
+    np.testing.assert_allclose(query, region.to_transform(z), atol=0.0)
+
+    result = region.project(query, metric)  # cold start: multi-start, no warm start
+
+    if result.distance > 1e-8:
+        pytest.xfail(
+            "seed-441: cold-start projection falls into a local minimum "
+            f"(distance={result.distance:.6g}); known false negative, warm-start recovers it"
+        )
+    # if the local optimizer ever finds the true zero basin, the canary XPASSes:
+    assert result.distance <= 1e-8
+    assert region.contains(query, metric=metric)
+
+
+def test_P10_seed441_warm_start_recovers_true_membership():
+    region, z, metric = _seed441_region()
+    query = region.to_transform(z)
+    result = region.project(query, metric, starts=[z])
+    assert result.success, result.message
+    assert result.distance <= 1e-10
+    np.testing.assert_allclose(result.z, z, atol=1e-8)

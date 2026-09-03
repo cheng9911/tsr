@@ -6,7 +6,7 @@ import pytest
 
 from tsr.gtsr.charts import PoEChart
 from tsr.gtsr.domains import CoordinateDomain, LinearInterval
-from tsr.gtsr.metrics import SE3Metric, se3_adjoint, se3_exp, se3_vee
+from tsr.gtsr.metrics import SE3Metric, se3_adjoint, se3_exp, se3_vee, so3_log
 from tsr.gtsr.region import GTSR
 
 
@@ -127,12 +127,15 @@ def test_poe_rotational_axes_require_unit_angular_part():
 
     near_unit = PoEChart([[0, 0, 32 * eps, 0, 0, 1 + 32 * eps]], representation="space")
     assert near_unit.periodic == (True,)
-    np.testing.assert_allclose(
-        near_unit.forward([0.3 + 2 * np.pi]),
-        near_unit.forward([0.3]),
-        rtol=0.0,
-        atol=1e-12,
-    )
+    # 2π-periodicity is verified with translation and rotation split (not a mixed-dimension
+    # matrix max): the rotation-angle error e_R and the translation 2-norm e_t scale with ‖v‖.
+    v = np.array([0.0, 0.0, 32 * eps])
+    T_ref = near_unit.forward([0.3])
+    T_wrap = near_unit.forward([0.3 + 2 * np.pi])
+    e_R = float(np.linalg.norm(so3_log(T_wrap[:3, :3].T @ T_ref[:3, :3])))
+    e_t = float(np.linalg.norm(T_wrap[:3, 3] - T_ref[:3, 3]))
+    assert e_R <= 1e-12
+    assert e_t <= 1e-12 * max(1.0, float(np.linalg.norm(v)))
 
 
 def test_generalized_sample_to_contains_and_partial_coordinates():

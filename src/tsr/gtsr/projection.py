@@ -140,7 +140,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
     optimal = bool(opt_norm <= tol_opt)
     success = bool(converged and feasible and optimal)
     if success:
-        message = "ok"
+        message = "local optimum; global optimality not certified"
     else:
         reasons = []
         if not converged:
