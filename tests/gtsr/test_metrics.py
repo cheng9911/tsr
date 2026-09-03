@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Siddhartha Srinivasa
+
+import numpy as np
+import pytest
+
+from tsr.gtsr.metrics import (
+    SE3Metric,
+    se3_adjoint,
+    se3_exp,
+    se3_hat,
+    se3_left_jacobian_inverse,
+    se3_log,
+    se3_vee,
+    skew,
+    so3_log,
+)
+
+
+def _random_se3(rng):
+    q, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+    if np.linalg.det(q) < 0:
+        q[:, 0] *= -1
+    T = np.eye(4)
+    T[:3, :3] = q
+    T[:3, 3] = rng.normal(size=3)
+    return T
+
+
+def test_M01_hat_vee_roundtrip():
+    xi = np.array([0.1, -0.2, 0.3, 0.4, -0.5, 0.6])
+    np.testing.assert_allclose(se3_vee(se3_hat(xi)), xi, atol=1e-15)
+    H = se3_hat(xi)
+    assert H.shape == (4, 4)
+    np.testing.assert_allclose(H[3, :], [0, 0, 0, 0], atol=1e-15)
+
+
+def test_M02_skew_is_antisymmetric():
+    w = np.array([0.1, -0.2, 0.3])
+    np.testing.assert_allclose(skew(w), -skew(w).T, atol=1e-15)
+
+
+def test_M03_so3_exp_log_roundtrip():
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        R, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+        if np.linalg.det(R) < 0:
+            R[:, 0] *= -1
+        w = so3_log(R)
+        R2 = np.eye(3)
+        th = np.linalg.norm(w)
+        if th > 1e-12:
+            W = skew(w)
+            R2 = np.eye(3) + np.sin(th) / th * W + (1 - np.cos(th)) / th**2 * (W @ W)
+        np.testing.assert_allclose(R2, R, atol=1e-10)
+
+
+def test_M04_se3_exp_log_roundtrip():
+    rng = np.random.default_rng(42)
+    for _ in range(50):
+        xi = rng.normal(size=6) * 0.5  # keep |w| < pi
+        T = se3_exp(xi)
+        xi2 = se3_log(T)
+        np.testing.assert_allclose(xi2, xi, atol=1e-10)
+        # and exp(log(T)) for a random SE(3)
+        T3 = _random_se3(rng)
+        np.testing.assert_allclose(se3_exp(se3_log(T3)), T3, atol=1e-10)
+
+
+def test_M05_adjoint_consistency():
+    rng = np.random.default_rng(7)
+    T = _random_se3(rng)
+    xi = np.array([0.1, -0.2, 0.3, 0.4, -0.5, 0.6])
+    lhs = se3_adjoint(T) @ xi
+    rhs = se3_vee(T @ se3_hat(xi) @ np.linalg.inv(T))
+    np.testing.assert_allclose(lhs, rhs, atol=1e-12)
+
+
+def test_M06_left_jacobian_inverse_matches_finite_difference():
+    xi = np.array([0.1, -0.2, 0.3, 0.3, -0.4, 0.5])
+    Jl_inv = se3_left_jacobian_inverse(xi)
+    # central finite-difference of the LEFT Jacobian: (exp(xi)^-1 d exp(xi))^vee
+    Jl = np.zeros((6, 6))
+    h = 1e-6
+    for i in range(6):
+        d = np.zeros(6)
+        d[i] = h
+        Jl[:, i] = se3_vee(np.linalg.inv(se3_exp(xi)) @ (se3_exp(xi + d) - se3_exp(xi - d))) / (2 * h)
+    np.testing.assert_allclose(Jl @ Jl_inv, np.eye(6), atol=1e-8)
+
+
+def test_M07_error_body_jacobian_and_metric_basics():
+    rng = np.random.default_rng(20260902)
+    metric = SE3Metric(rotation_weight=0.3)
+    A, B = _random_se3(rng), _random_se3(rng)
+    # symmetric distance
+    np.testing.assert_allclose(metric.distance(A, B), metric.distance(B, A), atol=1e-12)
+    assert metric.distance(A, A) < 1e-12
+    # error_body_jacobian against finite differences (body-frame perturbation)
+    E = metric.error_body_jacobian(A, B)
+    E_fd = np.zeros((6, 6))
+    h = 1e-7
+    for i in range(6):
+        d = np.zeros(6)
+        d[i] = h
+        rp = metric.error(A @ se3_exp(d), B)
+        rm = metric.error(A @ se3_exp(-d), B)
+        E_fd[:, i] = (rp - rm) / (2 * h)
+    np.testing.assert_allclose(E, E_fd, atol=1e-6)
+    # rotation_weight scaling on a pure rotation error
+    R = np.eye(4)
+    R[:3, :3] = se3_exp([0, 0, 0, 0, 0, 0.5])[:3, :3]
+    assert metric.distance(np.eye(4), R) == pytest.approx(0.3 * 0.5, abs=1e-12)
