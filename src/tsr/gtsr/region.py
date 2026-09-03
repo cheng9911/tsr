@@ -101,17 +101,24 @@ class GTSR:
         T_local = np.linalg.inv(self.T0_w) @ T @ np.linalg.inv(self.Tw_e)
         return self.chart.coordinates(T_local, self.domain)
 
-    def contains(self, T):
-        self._require_canonical("contains")
-        T = se3_transform(T, "T")
-        T0_s_prime = np.dot(T, np.linalg.inv(self.Tw_e))
-        Tw_s_prime = np.dot(np.linalg.inv(self.T0_w), T0_s_prime)
-        xyz, rot = Tw_s_prime[0:3, 3], Tw_s_prime[0:3, 0:3]
-        xyz_bounds = np.column_stack((self.domain.cont_lower[0:3], self.domain.cont_upper[0:3]))
-        rpy_bounds = np.column_stack((self.domain.cont_lower[3:6], self.domain.cont_upper[3:6]))
-        xyzcheck = self.chart.xyz_within_bounds(xyz, xyz_bounds)
-        rotcheck, _ = self.chart.rot_within_rpy_bounds(rot, rpy_bounds)
-        return all(np.hstack((xyzcheck, rotcheck)))
+    def project(self, T, metric):
+        from .projection import project as _project
+        return _project(self, T, metric)
+
+    def contains(self, T, metric=None, tol=1e-10):
+        if metric is None:
+            self._require_canonical("contains")
+            T = se3_transform(T, "T")
+            T0_s_prime = np.dot(T, np.linalg.inv(self.Tw_e))
+            Tw_s_prime = np.dot(np.linalg.inv(self.T0_w), T0_s_prime)
+            xyz, rot = Tw_s_prime[0:3, 3], Tw_s_prime[0:3, 0:3]
+            xyz_bounds = np.column_stack((self.domain.cont_lower[0:3], self.domain.cont_upper[0:3]))
+            rpy_bounds = np.column_stack((self.domain.cont_lower[3:6], self.domain.cont_upper[3:6]))
+            xyzcheck = self.chart.xyz_within_bounds(xyz, xyz_bounds)
+            rotcheck, _ = self.chart.rot_within_rpy_bounds(rot, rpy_bounds)
+            return all(np.hstack((xyzcheck, rotcheck)))
+        from .projection import project as _project
+        return _project(self, T, metric).distance <= tol
 
     def _displacement_to_tsr(self, T):
         self._require_canonical("distance")

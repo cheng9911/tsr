@@ -1,0 +1,121 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Siddhartha Srinivasa
+
+import numpy as np
+import pytest
+from scipy.optimize import minimize_scalar
+
+from tsr.gtsr.charts import PoEChart
+from tsr.gtsr.domains import CoordinateDomain, LinearInterval
+from tsr.gtsr.metrics import SE3Metric, se3_exp
+from tsr.gtsr.region import GTSR
+
+
+def _region_1d(axis, lo, hi):
+    chart = PoEChart([axis], representation="space")
+    domain = CoordinateDomain([LinearInterval(lo, hi)])
+    return GTSR(chart=chart, domain=domain)
+
+
+def test_P01_query_from_internal_coords():
+    axis = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    region = _region_1d(axis, -1.0, 1.0)
+    metric = SE3Metric()
+    z_true = np.array([0.35])
+    Tq = region.to_transform(z_true)
+    res = region.project(Tq, metric)
+    assert res.success
+    assert res.distance <= 1e-10
+    np.testing.assert_allclose(res.z, z_true, atol=1e-6)
+
+
+def test_P02_zero_width_domain():
+    axis = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    region = _region_1d(axis, 0.2, 0.2)
+    metric = SE3Metric()
+    Tq = se3_exp([0.9, 0.0, 0.0, 0.0, 0.0, 0.0])
+    res = region.project(Tq, metric)
+    np.testing.assert_allclose(res.z, [0.2], atol=1e-10)
+    assert res.distance == pytest.approx(abs(0.9 - 0.2), abs=1e-10)
+
+
+def test_P03_canonical_chart_projection_reconstructs_on_region():
+    Bw = np.array(
+        [
+            [-0.2, 0.2],
+            [-0.2, 0.2],
+            [-0.2, 0.2],
+            [-np.pi / 4, np.pi / 4],
+            [-np.pi / 4, np.pi / 4],
+            [-np.pi / 4, np.pi / 4],
+        ]
+    )
+    region = GTSR.canonical(Bw=Bw)
+    metric = SE3Metric()
+    rng = np.random.default_rng(7)
+    for _ in range(10):
+        z = region.domain.sample(rng)
+        Tq = region.to_transform(z)
+        res = region.project(Tq, metric)
+        assert res.success, res.message
+        assert res.distance <= 1e-8
+        assert region.contains(res.transform, metric=metric, tol=1e-8)
+        np.testing.assert_allclose(res.transform, Tq, atol=1e-8)
+
+
+def test_P04_1d_translation_analytic():
+    axis = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    region = _region_1d(axis, -0.5, 1.5)
+    metric = SE3Metric()
+    for q in [-1.0, 0.0, 0.7, 2.0]:
+        Tq = se3_exp([q, 0.0, 0.0, 0.0, 0.0, 0.0])
+        res = region.project(Tq, metric)
+        expected = float(np.clip(q, -0.5, 1.5))
+        np.testing.assert_allclose(res.z, [expected], atol=1e-8)
+        assert res.distance == pytest.approx(abs(q - expected), abs=1e-8)
+
+
+def test_P05_1d_nonzero_pitch_screw_reference():
+    h = 0.3
+    axis = [0.0, 0.0, h, 0.0, 0.0, 1.0]  # unit w, pitch h
+    region = _region_1d(axis, -1.0, 1.0)
+    metric = SE3Metric(rotation_weight=0.5)
+
+    def f(q):
+        return metric.distance(region.to_transform([q]), Tq)
+
+    for qq in [0.4, 1.8, -2.5]:
+        Tq = se3_exp([0.1, -0.2, 0.5, 0.2, -0.3, qq])  # off-axis query
+        # 密集网格先圈定全局最优的邻域，再用黄金分割精化（稳健于非单峰）
+        grid = np.linspace(-1.0, 1.0, 2001)
+        fvals = np.array([f(q) for q in grid])
+        i = int(np.argmin(fvals))
+        lo = grid[max(0, i - 1)]
+        hi = grid[min(len(grid) - 1, i + 1)]
+        ref = minimize_scalar(f, bounds=(lo, hi), method="bounded", options={"xatol": 1e-14})
+        res = region.project(Tq, metric)
+        assert res.distance <= ref.fun + 1e-8
+        np.testing.assert_allclose(res.z, [ref.x], atol=1e-6)
+
+
+def test_P06_idempotence():
+    axis = [0.0, 0.0, 0.3, 0.0, 0.0, 1.0]
+    region = _region_1d(axis, -1.5, 1.5)
+    metric = SE3Metric()
+    Tq = se3_exp([0.2, -0.4, 0.6, 0.5, -0.2, 0.0])
+    res1 = region.project(Tq, metric)
+    res2 = region.project(res1.transform, metric)
+    assert res2.distance <= 1e-10
+    np.testing.assert_allclose(res2.transform, res1.transform, atol=1e-10)
+
+
+def test_P07_contains_iff_projection_residual():
+    axis = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    region = _region_1d(axis, -1.0, 1.0)
+    metric = SE3Metric()
+    for q in [-1.0, 0.0, 0.9999, 1.0]:
+        Tq = se3_exp([q, 0.0, 0.0, 0.0, 0.0, 0.0])
+        assert region.contains(Tq, metric=metric) is True
+    for q in [1.5, -1.5]:
+        Tq = se3_exp([q, 0.0, 0.0, 0.0, 0.0, 0.0])
+        assert region.contains(Tq, metric=metric) is False
