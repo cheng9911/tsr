@@ -381,7 +381,7 @@ tests/gtsr/
 1. 实现 `PoEChart`；
 2. 实现显式 metric；
 3. 实现通用 `project/distance/contains`；
-4. 完成 G-01 至 G-08、P-01 至 P-09。
+4. 完成 G-01 至 G-09、P-01 至 P-09。
 
 退出条件：硬门 G2 通过。
 
