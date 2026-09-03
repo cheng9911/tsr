@@ -119,3 +119,37 @@ def test_P07_contains_iff_projection_residual():
     for q in [1.5, -1.5]:
         Tq = se3_exp([q, 0.0, 0.0, 0.0, 0.0, 0.0])
         assert region.contains(Tq, metric=metric) is False
+
+
+def test_P08_multidim_nonconvex_multistart_kkT():
+    # two non-commuting generators over a bounded 2D domain
+    S1 = [0.0, 0.0, 0.3, 0.0, 0.0, 1.0]
+    S2 = [0.1, 0.0, 0.0, 1.0, 0.0, 0.0]
+    chart = PoEChart([S1, S2], representation="space")
+    domain = CoordinateDomain([LinearInterval(-1.5, 1.5), LinearInterval(-1.5, 1.5)])
+    region = GTSR(chart=chart, domain=domain)
+    metric = SE3Metric(rotation_weight=0.7)
+    Tq = se3_exp([0.4, -0.3, 0.6, 0.5, -0.4, 0.2])
+    res = region.project(Tq, metric)
+    assert res.success, res.message
+    assert res.optimality <= 1e-6
+    # grid reference: best of a dense grid is not better than the found optimum (by > 1e-8)
+    xs = np.linspace(-1.5, 1.5, 201)
+    grid_best = min(
+        metric.distance(region.to_transform([a, b]), Tq) for a in xs for b in xs
+    )
+    assert res.distance <= grid_best + 1e-8
+
+
+def test_P09_failure_propagation_is_visible():
+    axis = [0.0, 0.0, 0.3, 0.0, 0.0, 1.0]
+    region = _region_1d(axis, -1.0, 1.0)
+    metric = SE3Metric()
+    Tq = se3_exp([0.2, -0.4, 0.6, 0.5, -0.2, 0.0])
+    from tsr.gtsr.projection import project
+    res = project(region, Tq, metric, maxiter=0)
+    assert res.success is False
+    assert res.message != "" and res.message != "ok"
+    assert np.all(np.isfinite(res.z))
+    assert np.isfinite(res.distance)
+    assert res.transform.shape == (4, 4)
