@@ -111,3 +111,21 @@ def test_M07_error_body_jacobian_and_metric_basics():
     R = np.eye(4)
     R[:3, :3] = se3_exp([0, 0, 0, 0, 0, 0.5])[:3, :3]
     assert metric.distance(np.eye(4), R) == pytest.approx(0.3 * 0.5, abs=1e-12)
+
+
+def test_M08_so3_log_pi_rotation():
+    # At exactly θ=π the antisymmetric part of R vanishes, so the θ/(2 sinθ)
+    # form in so3_log degenerates to a spurious zero axis (identity). The
+    # rotation axis must instead be recovered from R + I = 2 a aᵀ.
+    a = np.array([1.0, -2.0, 0.5])
+    a = a / np.linalg.norm(a)
+    R = se3_exp(np.hstack([[0.0, 0.0, 0.0], np.pi * a]))[:3, :3]
+    w = so3_log(R)
+    assert np.linalg.norm(w) == pytest.approx(np.pi, abs=1e-10)
+    assert abs(np.dot(w, a)) == pytest.approx(np.linalg.norm(w), abs=1e-10)
+    # round-trip: exp(log(R)) == R
+    np.testing.assert_allclose(se3_exp(np.hstack([[0.0, 0.0, 0.0], w]))[:3, :3], R, atol=1e-10)
+    # the metric must NOT report a 180° rotation as identity
+    metric = SE3Metric()
+    r = metric.error(np.eye(4), se3_exp(np.hstack([[0.0, 0.0, 0.0], np.pi * a])))
+    assert np.linalg.norm(r[3:6]) == pytest.approx(np.pi, abs=1e-10)

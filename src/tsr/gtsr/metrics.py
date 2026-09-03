@@ -41,6 +41,18 @@ def so3_log(R):
     if theta < _TINY:
         W = R - R.T
         return np.array([W[2, 1], W[0, 2], W[1, 0]]) / 2.0
+    if np.pi - theta < _TINY:
+        # theta ≈ π: R is symmetric (R - R^T = 0), so the theta/(2 sinθ) form
+        # degenerates to a spurious zero axis. Recover the axis from
+        # R + I = 2 a a^T at θ=π — take the column of R + I with the largest
+        # norm (robust to the axis aligning with any basis direction),
+        # normalize, and scale by θ.
+        S = R + np.eye(3)
+        i = int(np.argmax(np.diag(S)))
+        a = S[:, i]
+        n = float(np.linalg.norm(a))
+        a = a / n if n > 0.0 else np.zeros(3)
+        return theta * a
     s = np.sin(theta)
     return theta / (2.0 * s) * np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
 
