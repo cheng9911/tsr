@@ -65,6 +65,8 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
     starts_list.extend(domain.sample(rng) for _ in range(4))
     if starts is not None:
         starts_list = list(starts)
+        if not starts_list:
+            raise ValueError("starts must contain at least one initial coordinate vector")
 
     best_z = None
     best_d = float("inf")
@@ -120,9 +122,10 @@ def _finite_diff_gradient(fg, z, lower, upper, tol_bounds, h=1e-6):
         if lower[i] >= upper[i] - tol_bounds:
             g[i] = 0.0  # degenerate (fixed) coordinate: no finite difference
             continue
-        zp = z.copy(); zm = z.copy()
-        zp[i] = min(zp[i] + h, upper[i])   # clamp so fg never leaves the bounds
-        zm[i] = max(zm[i] - h, lower[i])   # (to_transform raises out-of-bounds)
+        zp = z.copy()
+        zm = z.copy()
+        zp[i] = min(zp[i] + h, upper[i])  # clamp so fg never leaves the bounds
+        zm[i] = max(zm[i] - h, lower[i])  # (to_transform raises out-of-bounds)
         denom = zp[i] - zm[i]
         g[i] = (fg(zp)[0] - fg(zm)[0]) / denom if denom > 0.0 else 0.0
     return g

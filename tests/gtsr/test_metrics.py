@@ -129,3 +129,23 @@ def test_M08_so3_log_pi_rotation():
     metric = SE3Metric()
     r = metric.error(np.eye(4), se3_exp(np.hstack([[0.0, 0.0, 0.0], np.pi * a])))
     assert np.linalg.norm(r[3:6]) == pytest.approx(np.pi, abs=1e-10)
+
+
+@pytest.mark.parametrize("delta", [0.0, 1e-10, 1e-8, 1e-6])
+def test_M09_so3_and_se3_log_random_axes_near_pi_roundtrip(delta):
+    rng = np.random.default_rng(20260903)
+    for _ in range(250):
+        axis = rng.normal(size=3)
+        axis /= np.linalg.norm(axis)
+        xi = np.hstack((rng.normal(size=3), (np.pi - delta) * axis))
+        T = se3_exp(xi)
+
+        recovered_R = se3_exp(np.hstack((np.zeros(3), so3_log(T[:3, :3]))))[:3, :3]
+        np.testing.assert_allclose(recovered_R, T[:3, :3], rtol=0.0, atol=1e-10)
+        np.testing.assert_allclose(se3_exp(se3_log(T)), T, rtol=0.0, atol=1e-10)
+
+
+@pytest.mark.parametrize("weight", [0.0, -1.0, np.nan, np.inf])
+def test_se3_metric_requires_strictly_positive_rotation_weight(weight):
+    with pytest.raises(ValueError, match="strictly positive"):
+        SE3Metric(rotation_weight=weight)

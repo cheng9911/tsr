@@ -27,6 +27,7 @@ def test_P01_query_from_internal_coords():
     assert res.success
     assert res.distance <= 1e-10
     np.testing.assert_allclose(res.z, z_true, atol=1e-6)
+    np.testing.assert_allclose(res.transform, Tq, atol=1e-10)
 
 
 def test_P02_zero_width_domain():
@@ -63,6 +64,22 @@ def test_P03_canonical_chart_projection_reconstructs_on_region():
         np.testing.assert_allclose(res.transform, Tq, atol=1e-8)
 
 
+def test_P03_canonical_chart_projection_matches_analytic_translation_clip():
+    Bw = np.zeros((6, 2))
+    Bw[0] = [-0.2, 0.2]
+    region = GTSR.canonical(Bw=Bw)
+    query = se3_exp([0.7, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+    res = region.project(query, SE3Metric())
+
+    expected_z = np.zeros(6)
+    expected_z[0] = 0.2
+    assert res.success, res.message
+    np.testing.assert_allclose(res.z, expected_z, atol=1e-10)
+    np.testing.assert_allclose(res.transform, region.to_transform(expected_z), atol=1e-12)
+    assert res.distance == pytest.approx(0.5, abs=1e-10)
+
+
 def test_P04_1d_translation_analytic():
     axis = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     region = _region_1d(axis, -0.5, 1.5)
@@ -73,6 +90,20 @@ def test_P04_1d_translation_analytic():
         expected = float(np.clip(q, -0.5, 1.5))
         np.testing.assert_allclose(res.z, [expected], atol=1e-8)
         assert res.distance == pytest.approx(abs(q - expected), abs=1e-8)
+
+
+def test_P04_1d_pure_rotation_analytic():
+    chart = PoEChart([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], representation="space")
+    domain = CoordinateDomain.from_bounds([[-0.5, 0.5]], chart.periodic, chart.periods)
+    region = GTSR(chart=chart, domain=domain)
+    metric = SE3Metric(rotation_weight=0.4)
+    for q in [-1.0, -0.2, 0.3, 1.0]:
+        query = se3_exp([0.0, 0.0, 0.0, 0.0, 0.0, q])
+        res = region.project(query, metric)
+        expected = float(np.clip(q, -0.5, 0.5))
+        assert res.success, res.message
+        np.testing.assert_allclose(res.z, [expected], atol=1e-8)
+        assert res.distance == pytest.approx(0.4 * abs(q - expected), abs=1e-8)
 
 
 def test_P05_1d_nonzero_pitch_screw_reference():
@@ -121,6 +152,31 @@ def test_P07_contains_iff_projection_residual():
         assert region.contains(Tq, metric=metric) is False
 
 
+def test_P07_canonical_sample_is_contained_with_default_generic_tolerance():
+    bounds = np.array(
+        [
+            [-0.2, 0.2],
+            [-0.2, 0.2],
+            [-0.2, 0.2],
+            [-np.pi / 4, np.pi / 4],
+            [-np.pi / 4, np.pi / 4],
+            [-np.pi / 4, np.pi / 4],
+        ]
+    )
+    region = GTSR.canonical(Bw=bounds)
+    metric = SE3Metric()
+    rng = np.random.default_rng(7)
+
+    for _ in range(30):
+        assert region.contains(region.sample(rng=rng), metric=metric)
+
+
+def test_P07_default_generic_tolerance_rejects_pose_clearly_outside():
+    region = _region_1d([1.0, 0.0, 0.0, 0.0, 0.0, 0.0], -1.0, 1.0)
+    query = se3_exp([1.0 + 5e-8, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert region.contains(query, metric=SE3Metric()) is False
+
+
 def test_P08_multidim_nonconvex_multistart_kkT():
     # two non-commuting generators over a bounded 2D domain
     S1 = [0.0, 0.0, 0.3, 0.0, 0.0, 1.0]
@@ -135,9 +191,7 @@ def test_P08_multidim_nonconvex_multistart_kkT():
     assert res.optimality <= 1e-6
     # grid reference: best of a dense grid is not better than the found optimum (by > 1e-8)
     xs = np.linspace(-1.5, 1.5, 201)
-    grid_best = min(
-        metric.distance(region.to_transform([a, b]), Tq) for a in xs for b in xs
-    )
+    grid_best = min(metric.distance(region.to_transform([a, b]), Tq) for a in xs for b in xs)
     assert res.distance <= grid_best + 1e-8
 
 
@@ -147,9 +201,18 @@ def test_P09_failure_propagation_is_visible():
     metric = SE3Metric()
     Tq = se3_exp([0.2, -0.4, 0.6, 0.5, -0.2, 0.0])
     from tsr.gtsr.projection import project
+
     res = project(region, Tq, metric, maxiter=0)
     assert res.success is False
     assert res.message != "" and res.message != "ok"
     assert np.all(np.isfinite(res.z))
     assert np.isfinite(res.distance)
     assert res.transform.shape == (4, 4)
+
+
+def test_project_rejects_empty_explicit_starts():
+    region = _region_1d([1.0, 0.0, 0.0, 0.0, 0.0, 0.0], -1.0, 1.0)
+    with pytest.raises(ValueError, match="starts must contain at least one"):
+        from tsr.gtsr.projection import project
+
+        project(region, np.eye(4), SE3Metric(), starts=[])

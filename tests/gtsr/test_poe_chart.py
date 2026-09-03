@@ -5,7 +5,9 @@ import numpy as np
 import pytest
 
 from tsr.gtsr.charts import PoEChart
-from tsr.gtsr.metrics import se3_adjoint, se3_exp, se3_vee
+from tsr.gtsr.domains import CoordinateDomain, LinearInterval
+from tsr.gtsr.metrics import SE3Metric, se3_adjoint, se3_exp, se3_vee
+from tsr.gtsr.region import GTSR
 
 
 def _rotz(a):
@@ -18,11 +20,14 @@ def _rotx(a):
     return np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
 
 
-def test_G01_single_translation_axis():
-    chart = PoEChart([[1, 0, 0, 0, 0, 0]], representation="space")
+@pytest.mark.parametrize("axis_index", [0, 1, 2])
+def test_G01_single_translation_axis(axis_index):
+    axis = np.zeros(6)
+    axis[axis_index] = 1.0
+    chart = PoEChart([axis], representation="space")
     T = chart.forward([0.5])
     expected = np.eye(4)
-    expected[0, 3] = 0.5
+    expected[axis_index, 3] = 0.5
     np.testing.assert_allclose(T, expected, atol=1e-15)
 
 
@@ -74,7 +79,7 @@ def test_G05_product_order_two_noncommuting_generators():
     th1, th2 = 0.4, 0.6
     chart = PoEChart([S_z, S_x], representation="space")
     T = chart.forward([th1, th2])
-    expected_R = _rotz(th1) @ _rotx(th2)   # Exp(S1 z1) Exp(S2 z2) M
+    expected_R = _rotz(th1) @ _rotx(th2)  # Exp(S1 z1) Exp(S2 z2) M
     np.testing.assert_allclose(T[:3, :3], expected_R, atol=1e-15)
     # swapped axes => different result (non-commuting), still matches analytic order
     chart2 = PoEChart([S_x, S_z], representation="space")
@@ -87,7 +92,7 @@ def test_G05_product_order_two_noncommuting_generators():
 def test_G06_space_body_adjoint_consistency():
     M = se3_exp([0.1, -0.2, 0.3, 0.3, -0.4, 0.5])
     B = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-    S = se3_adjoint(M) @ B   # space screw = Ad_M * body screw
+    S = se3_adjoint(M) @ B  # space screw = Ad_M * body screw
     body = PoEChart([B], representation="body", M=M)
     space = PoEChart([S], representation="space", M=M)
     z = [0.7]
@@ -95,9 +100,49 @@ def test_G06_space_body_adjoint_consistency():
 
 
 def test_G07_external_frames_are_applied_by_region():
-    # covered in region-level: T0_w @ forward(z) @ Tw_e (see test_projection / to_transform reuse)
     chart = PoEChart([[0, 0, 0, 0, 0, 1]], representation="space")
-    assert chart.forward([0.0]).shape == (4, 4)
+    domain = CoordinateDomain.from_bounds([[-0.8, 0.8]], chart.periodic, chart.periods)
+    T0_w = se3_exp([0.3, -0.2, 0.1, 0.2, 0.0, -0.1])
+    Tw_e = se3_exp([-0.1, 0.4, 0.2, 0.0, -0.3, 0.1])
+    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
+    z = np.array([0.37])
+
+    np.testing.assert_allclose(
+        region.to_transform(z),
+        T0_w @ chart.forward(z) @ Tw_e,
+        atol=1e-14,
+    )
+
+
+def test_poe_rotational_axes_require_unit_angular_part():
+    periodic_chart = PoEChart([[0, 0, 0, 0, 0, 1]], representation="space")
+    screw_chart = PoEChart([[0.2, -0.1, 0.0, 1, 0, 0]], representation="space")
+    assert periodic_chart.periods == (2 * np.pi,)
+    assert screw_chart.periods == (None,)
+
+    for angular_norm in (0.5, 2.0):
+        with pytest.raises(ValueError, match="unit angular part"):
+            PoEChart([[0, 0, 0, 0, 0, angular_norm]], representation="space")
+
+
+def test_generalized_sample_to_contains_and_partial_coordinates():
+    chart = PoEChart(
+        [[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0]],
+        representation="space",
+    )
+    domain = CoordinateDomain([LinearInterval(-0.5, 0.5), LinearInterval(1.0, 2.0)])
+    region = GTSR(chart=chart, domain=domain)
+
+    default_sample = region.sample(rng=np.random.default_rng(7))
+    np.testing.assert_array_equal(default_sample, region.sample(rng=np.random.default_rng(7)))
+    assert region.contains(default_sample, metric=SE3Metric())
+
+    expected_rng = np.random.default_rng(20260903)
+    expected_z = np.array([0.25, 1.0 + expected_rng.random()])
+    sampled = region.sample([0.25, np.nan], rng=np.random.default_rng(20260903))
+
+    np.testing.assert_allclose(sampled, region.to_transform(expected_z), atol=1e-15)
+    assert region.contains(sampled, metric=SE3Metric())
 
 
 def test_G08_se3_sanity_all_outputs():
@@ -132,9 +177,7 @@ def test_G09_jacobian_matches_central_finite_difference():
                 d[i] = h
                 Tp = chart.forward(z + d)
                 Tm = chart.forward(z - d)
-                J_fd[:, i] = se3_vee(
-                    np.linalg.inv(chart.forward(z)) @ (Tp - Tm)
-                ) / (2 * h)
+                J_fd[:, i] = se3_vee(np.linalg.inv(chart.forward(z)) @ (Tp - Tm)) / (2 * h)
             np.testing.assert_allclose(J, J_fd, atol=1e-6)
 
 
@@ -152,7 +195,7 @@ def test_G09_canonical_chart_jacobian_matches_central_finite_difference():
         for i in range(6):
             d = np.zeros(6)
             d[i] = h
-            J_fd[:, i] = se3_vee(
-                np.linalg.inv(chart.forward(z)) @ (chart.forward(z + d) - chart.forward(z - d))
-            ) / (2 * h)
+            J_fd[:, i] = se3_vee(np.linalg.inv(chart.forward(z)) @ (chart.forward(z + d) - chart.forward(z - d))) / (
+                2 * h
+            )
         np.testing.assert_allclose(J, J_fd, atol=1e-6)

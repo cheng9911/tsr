@@ -41,7 +41,8 @@ Sprint B 第 3 步）。本设计文档与后续计划均按 G-01~G-09 执行；
 | twist 排列 | `ξ = [v, ω] ∈ ℝ⁶`，`v`（线性）在前，`ω`（角速度）在后 |
 | `hat` | `hat(ξ) = [[skew(ω), v], [0, 0]] ∈ se(3)`；`vee` 为其逆 |
 | screw 螺距 | `h = ωᵀv / ‖ω‖²`；`ω=0` 纯平移（`h=∞`），`h=0` 纯旋转，`h≠0` 有限螺距 |
-| 周期语义 | 仅 `h=0`（纯旋转）坐标是周期轴 `CircularInterval(2π)`；`h≠0` 与纯平移坐标是 `LinearInterval`（`q` 与 `q+2π` 轴向位移相差 `2πh`，不得 wrap）|
+| screw 轴归一化 | 对所有含旋转的轴显式要求 `‖ω‖≈1`，不静默归一化；因此坐标量 `q` 就是旋转角。`ω=0` 的纯平移轴不受此约束 |
+| 周期语义 | 在上述单位轴契约下，仅 `h=0`（纯旋转）坐标是周期轴 `CircularInterval(2π)`；`h≠0` 与纯平移坐标是 `LinearInterval`（`q` 与 `q+2π` 轴向位移相差 `2πh`，不得 wrap）|
 | PoE SPACE | `Φ(z) = Exp(S₁z₁) ⋯ Exp(Sₘzₘ) M`（screw 轴在空间/世界 frame）|
 | PoE BODY | `Φ(z) = M Exp(B₁z₁) ⋯ Exp(Bₘzₘ)`（screw 轴在 body/home frame）|
 | 生成元顺序 | `order` 为显式索引排列（默认 `0..m-1`），不依赖容器偶然顺序 |
@@ -64,7 +65,7 @@ se3_adjoint(T) -> Ad                         # 6×6，作用于 [v,ω]
 se3_left_jacobian_inverse(xi) -> J_l⁻¹       # 6×6（左 Jacobian 逆，精确级数 + 6×6 求逆）
 
 class SE3Metric:
-    def __init__(self, rotation_weight=1.0): ...   # w（m/rad），非负有限
+    def __init__(self, rotation_weight=1.0): ...   # w（m/rad），严格正且有限
     def error(self, T_from, T_to) -> np.ndarray    # Log(T_from⁻¹ T_to)^vee -> [ρ, θ] (6,)
     def distance(self, T_from, T_to) -> float      # sqrt(‖ρ‖² + w²‖θ‖²)
     def distance_sq(self, r) -> float              # rᵀ W r
@@ -81,14 +82,17 @@ g = T(z)⁻¹ T_q ;  r = se3_log(g)^vee ;  E = -J_l(r)⁻¹ Ad_{g⁻¹}
 r=0 时 E=-I，退化为 -2 Jᵀ W r。
 ```
 
-`J_l⁻¹` 在 `θ→0` 处用极限展开，数值稳定。
+`so3_log` 用 `atan2(sinθ, cosθ)` 求主值角；对钝角旋转从 `sym(R)` 的最大特征值特征向量恢复
+旋转轴，避免 `θ→π` 时反对称部分退化。`se3_log` 的 `V⁻¹` 系数在小角处用级数、其余使用稳定的
+半角式。`J_l⁻¹` 在 `θ→0` 处用极限展开，数值稳定。
 
 ### 3.2 charts.py — PoEChart
 
 ```python
 class PoEChart(GeneratorChart):
     def __init__(self, axes, representation, order=None, M=None):
-        # axes: Sequence[6-vec [v,ω]]，长度 m；representation ∈ {"space","body"}
+        # axes: Sequence[6-vec [v,ω]]，长度 m；若 ω!=0，必须 ‖ω‖≈1；不静默归一化
+        # representation ∈ {"space","body"}
         # order: 显式索引排列（默认 range(m)）；M: 4x4 home（默认 I）
         # coord_names 自动生成 ("q0","q1",...)，periodic 由每轴 pitch 决定：
         #   ‖ω‖>0 且 h≈0 -> True/2π；否则 False/None
@@ -101,8 +105,9 @@ class PoEChart(GeneratorChart):
 - SPACE：`J_i = Ad_{(Exp(S_i z_i)⋯Exp(S_m z_m) M)⁻¹}(S_i)`；
 - BODY：`J_i = Ad_{(Exp(B_i z_i)⋯Exp(B_m z_m))⁻¹}(B_i)`。
 
-`periodic` 由 `axes` 的 pitch 自动推断（§3.4：周期是显式属性，此处按纯旋转唯一判定），
-不再接受自由字符串；`representation` 仅允许 `{"space","body"}`（§3.5）。
+`periodic` 由满足单位轴契约的 `axes` 的 pitch 自动推断（§3.4：周期是显式属性，此处按纯旋转唯一判定），
+不再接受自由字符串；非零且非单位的 `ω` 直接拒绝，以保证 `q` 的角度语义和 `2π` 周期正确；
+`representation` 仅允许 `{"space","body"}`（§3.5）。
 
 ### 3.3 projection.py — ProjectionResult 与通用投影
 
@@ -122,7 +127,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6) -> 
 投影流程：
 
 1. **固定多起点**：`domain.cont_lower`、`cont_upper`、中点，外加固定种子生成的若干合法坐标
-   （默认 4 个，`numpy.random.default_rng(20260902)`）；
+   （默认 4 个，`numpy.random.default_rng(20260902)`）；显式 `starts` 不得为空；
 2. 每个起点做 **L-BFGS-B**（`bounds=domain`，精确左不变解析梯度 `2 Jᵀ Eᵀ W r`），保留 `distance` 最小者；
 3. 最优性独立复核：对最优 `z` 用**中心有限差分**求真实梯度，投影到非活跃坐标后取范数
    （`optimality`）；
@@ -140,18 +145,23 @@ class GTSR:
     def to_transform(self, z) -> np.ndarray
     def to_xyzrpy(self, T) -> np.ndarray            # canonical only
     def is_valid(self, z, ignoreNAN=False) -> bool[6]   # canonical only
-    def contains(self, T, metric=None, tol=1e-10) -> bool
+    def contains(self, T, metric=None, tol=1e-8) -> bool
     def distance(self, T, rotation_weight=1.0) -> (float, np.ndarray)  # legacy, canonical only
     def sample_xyzrpy(self, partial=NANBW, rng=None) -> np.ndarray      # canonical only
-    def sample(self, partial=NANBW, rng=None) -> np.ndarray
+    def sample(self, partial=None, rng=None) -> np.ndarray
     # --- Sprint B 新增 ---
     def project(self, T, metric) -> ProjectionResult
 ```
 
-`contains(T, metric=None, tol=1e-10)`：`metric is None` 走 legacy 路径（canonical 专属，
+`contains(T, metric=None, tol=1e-8)`：`metric is None` 走 legacy 路径（canonical 专属，
 `EPSILON=1e-3`）；`metric` 给定走通用路径（`project(T, metric).distance <= tol`，任意 chart）。
+通用默认容差与投影器已验证的约 `1e-9` 数值残差地板对齐；距离边界大于 `tol` 的 pose 仍判为区域外。
 通用 `distance` 由 `project(T, metric).distance` 提供，不再另设一个与 legacy `distance` 同名的
 第二语义方法（避免混淆，§3.7「互不混淆」）。
+
+`sample(partial=None, rng=None)` 对 canonical chart 保持 Sprint A 的 `sample_xyzrpy` 路径和随机流
+兼容；对 generalized chart，`partial` 是长度为 `chart.dim` 的坐标向量，`NaN` 维按坐标顺序各消费
+一次标量随机抽样，非 `NaN` 维必须已在 domain 内。返回值统一为外 frame 组合后的变换。
 
 ## 4. 数据流
 
@@ -165,10 +175,11 @@ T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> d_W         # �
 ## 5. 测试矩阵（对应文档 §6.4 / §6.5）
 
 - `test_poe_chart.py`：G-01~G-09。
-  - G-01 单轴平移；G-02 任意单位轴纯旋转（Rodrigues）；G-03 轴不过原点的零螺距 screw；
-    G-04 非零有限螺距 screw（`θ=q`、轴向 `hq`）；G-05 两个不对易生成元（显式解析矩阵 oracle，
+  - G-01 x/y/z 单轴平移；G-02 任意单位轴纯旋转（Rodrigues）；G-03 轴不过原点的零螺距 screw；
+    G-04 非零有限螺距 screw（`θ=q`、轴向 `hq`）；非单位 `ω` 拒绝；G-05 两个不对易生成元（显式解析矩阵 oracle，
     区分度 > 数值噪声 6 个数量级）；G-06 space/body + Adjoint 一致；G-07 外 `T0/Te` 组合；
     G-08 `RᵀR=I`、`det=1`、末行 `[0,0,0,1]`（残差 ≤ 1e-12）；G-09 解析 Jacobian 对中心有限差分（≤ 1e-6）。
+  - M-09 随机轴精确/近 `π` 的 `Exp(Log(T))`（含平移）矩阵 round-trip。
 - `test_projection.py`：P-01~P-09。
   - P-01 内部坐标查询（`distance ≤ 1e-10`）；P-02 零宽 domain；P-03 canonical 对 legacy/解析裁剪
     （各自度量）；P-04 1D 平移/纯旋转对解析投影；P-05 1D 非零螺距 screw 对高精度标量参考；

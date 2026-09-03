@@ -91,6 +91,13 @@ def test_rotation_weight_contract():
         region.distance(np.eye(4), rotation_weight=object())
 
 
+def test_legacy_distance_keeps_zero_rotation_weight_compatibility():
+    region = GTSR.canonical()
+    query = CanonicalTSRChart.xyzrpy_to_trans([0.0, 0.0, 0.0, 0.0, 0.0, 0.5])
+    distance, _ = region.distance(query, rotation_weight=0.0)
+    assert distance == 0.0
+
+
 def test_generic_chart_composition_is_available_but_legacy_methods_are_restricted():
     region = GTSR(
         chart=OneDimensionalChart(),

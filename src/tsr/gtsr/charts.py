@@ -13,7 +13,6 @@ from ._validation import finite_matrix, finite_vector, rotation_matrix, se3_tran
 from .domains import CoordinateDomain
 from .metrics import se3_adjoint, se3_exp
 
-
 _CANONICAL_AXES = np.array(
     [
         [1, 0, 0, 0, 0, 0],  # x
@@ -289,6 +288,7 @@ class PoEChart(GeneratorChart):
     """
 
     _PITCH_TOL = 1e-12
+    _ANGULAR_NORM_RTOL = 1e-10
 
     def __init__(self, axes, representation, order=None, M=None):
         axes = np.asarray(axes, dtype=float)
@@ -313,6 +313,8 @@ class PoEChart(GeneratorChart):
             if th <= self._PITCH_TOL:
                 periodic.append(False)  # pure translation
             else:
+                if not np.isclose(th, 1.0, rtol=self._ANGULAR_NORM_RTOL, atol=self._PITCH_TOL):
+                    raise ValueError(f"rotational screw axes must have a unit angular part (||omega|| ~= 1), got {th}")
                 pitch = float(np.dot(w, v)) / (th * th)
                 periodic.append(abs(pitch) <= self._PITCH_TOL)
         periods = tuple(2 * pi if p else None for p in periodic)

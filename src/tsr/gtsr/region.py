@@ -17,9 +17,10 @@ NANBW = np.ones(6) * float("nan")
 class GTSR:
     """A bounded chart region ``{T0_w @ chart.forward(z) @ Tw_e}``.
 
-    Sprint A supports generic chart composition through :meth:`to_transform`.
-    The legacy ``xyzrpy`` membership, distance, and sampling methods are
-    deliberately restricted to :class:`CanonicalTSRChart`.
+    Generic charts support composition, projection, metric membership, and
+    coordinate-domain sampling. The legacy ``xyzrpy`` membership, distance,
+    and coordinate sampling methods remain restricted to
+    :class:`CanonicalTSRChart`.
     """
 
     def __init__(self, T0_w=None, Tw_e=None, chart=None, domain=None):
@@ -103,9 +104,10 @@ class GTSR:
 
     def project(self, T, metric):
         from .projection import project as _project
+
         return _project(self, T, metric)
 
-    def contains(self, T, metric=None, tol=1e-10):
+    def contains(self, T, metric=None, tol=1e-8):
         if metric is None:
             self._require_canonical("contains")
             T = se3_transform(T, "T")
@@ -118,6 +120,7 @@ class GTSR:
             rotcheck, _ = self.chart.rot_within_rpy_bounds(rot, rpy_bounds)
             return all(np.hstack((xyzcheck, rotcheck)))
         from .projection import project as _project
+
         return _project(self, T, metric).distance <= tol
 
     def _displacement_to_tsr(self, T):
@@ -196,8 +199,26 @@ class GTSR:
         Bw_sample[3:6] = wrap_to_interval(Bw_sample[3:6])
         return Bw_sample
 
-    def sample(self, xyzrpy=NANBW, rng=None):
-        return self.to_transform(self.sample_xyzrpy(xyzrpy, rng=rng))
+    def sample(self, partial=None, rng=None):
+        if isinstance(self.chart, CanonicalTSRChart):
+            xyzrpy = NANBW if partial is None else partial
+            return self.to_transform(self.sample_xyzrpy(xyzrpy, rng=rng))
+
+        if rng is None:
+            rng = np.random.default_rng()
+        if not callable(getattr(rng, "random", None)):
+            raise TypeError("rng must provide a callable random method")
+        if partial is None:
+            partial = np.full(self.chart.dim, np.nan)
+        z = finite_vector(partial, self.chart.dim, "partial", allow_nan=True)
+        valid = np.array([np.isnan(value) or self.domain.intervals[i].contains(value) for i, value in enumerate(z)])
+        if not all(valid):
+            violated = np.flatnonzero(~valid).tolist()
+            raise ValueError(f"partial coordinates violate bounds at dimensions {violated}")
+        sampled = z.copy()
+        for i in np.flatnonzero(np.isnan(sampled)):
+            sampled[i] = self.domain.intervals[i].map_from_unit(rng.random())
+        return self.to_transform(sampled)
 
     def _require_canonical(self, method):
         if not isinstance(self.chart, CanonicalTSRChart):

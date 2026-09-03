@@ -36,25 +36,22 @@ def se3_vee(H):
 
 def so3_log(R):
     R = rotation_matrix(R)
+    vee = np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
+    sin_theta = 0.5 * np.linalg.norm(vee)
     cos_theta = np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0)
-    theta = np.arccos(cos_theta)
+    theta = np.arctan2(sin_theta, cos_theta)
     if theta < _TINY:
-        W = R - R.T
-        return np.array([W[2, 1], W[0, 2], W[1, 0]]) / 2.0
-    if np.pi - theta < _TINY:
-        # theta ≈ π: R is symmetric (R - R^T = 0), so the theta/(2 sinθ) form
-        # degenerates to a spurious zero axis. Recover the axis from
-        # R + I = 2 a a^T at θ=π — take the column of R + I with the largest
-        # norm (robust to the axis aligning with any basis direction),
-        # normalize, and scale by θ.
-        S = R + np.eye(3)
-        i = int(np.argmax(np.diag(S)))
-        a = S[:, i]
-        n = float(np.linalg.norm(a))
-        a = a / n if n > 0.0 else np.zeros(3)
-        return theta * a
-    s = np.sin(theta)
-    return theta / (2.0 * s) * np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
+        return vee / 2.0
+    if cos_theta < 0.0:
+        # For obtuse rotations, extracting the axis from the skew part becomes
+        # ill-conditioned as theta approaches pi.  The principal eigenvector of
+        # sym(R) remains well-conditioned here: its eigengap is 1-cos(theta) >= 1.
+        _, eigenvectors = np.linalg.eigh((R + R.T) / 2.0)
+        axis = eigenvectors[:, -1]
+        if np.dot(axis, vee) < 0.0:
+            axis = -axis
+        return theta * axis
+    return theta / (2.0 * sin_theta) * vee
 
 
 def se3_exp(xi):
@@ -84,7 +81,12 @@ def se3_log(T):
         return np.hstack([p, w])
     W = skew(w)
     W2 = W @ W
-    coef = 1.0 / theta**2 - (1.0 + np.cos(theta)) / (2.0 * theta * np.sin(theta))
+    if theta < 1e-4:
+        theta2 = theta * theta
+        coef = 1.0 / 12.0 + theta2 / 720.0 + theta2 * theta2 / 30240.0
+    else:
+        half_theta = theta / 2.0
+        coef = (1.0 - half_theta / np.tan(half_theta)) / theta**2
     V_inv = np.eye(3) - 0.5 * W + coef * W2
     return np.hstack([V_inv @ p, w])
 
@@ -129,8 +131,8 @@ class SE3Metric:
             self.rotation_weight = float(rotation_weight)
         except (TypeError, ValueError) as exc:
             raise TypeError("rotation_weight must be a real scalar") from exc
-        if not np.isfinite(self.rotation_weight) or self.rotation_weight < 0.0:
-            raise ValueError("rotation_weight must be finite and non-negative")
+        if not np.isfinite(self.rotation_weight) or self.rotation_weight <= 0.0:
+            raise ValueError("rotation_weight must be finite and strictly positive")
 
     def error(self, T_from, T_to):
         T_from = se3_transform(T_from, "T_from")
