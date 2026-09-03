@@ -130,13 +130,13 @@ def test_M05_adjoint_consistency():
 def test_M06_left_jacobian_inverse_matches_finite_difference():
     xi = np.array([0.1, -0.2, 0.3, 0.3, -0.4, 0.5])
     Jl_inv = se3_left_jacobian_inverse(xi)
-    # finite-difference the LEFT Jacobian: exp(xi)^-1 d exp(xi)
+    # central finite-difference of the LEFT Jacobian: (exp(xi)^-1 d exp(xi))^vee
     Jl = np.zeros((6, 6))
     h = 1e-6
     for i in range(6):
         d = np.zeros(6)
         d[i] = h
-        Jl[:, i] = se3_vee(np.linalg.inv(se3_exp(xi)) @ (se3_exp(xi + d) - se3_exp(xi))) / h
+        Jl[:, i] = se3_vee(np.linalg.inv(se3_exp(xi)) @ (se3_exp(xi + d) - se3_exp(xi - d))) / (2 * h)
     np.testing.assert_allclose(Jl @ Jl_inv, np.eye(6), atol=1e-8)
 
 
@@ -266,18 +266,23 @@ def se3_adjoint(T):
 def se3_left_jacobian_inverse(xi):
     xi = finite_vector(xi, 6, "xi")
     v, w = xi[0:3], xi[3:6]
-    theta = np.linalg.norm(w)
-    # ad_xi for [v, w] ordering: [[skew(w), -skew(v)], [0, skew(w)]]
+    # ad_xi for [v, w] ordering: [[skew(w), skew(v)], [0, skew(w)]]
     ad = np.zeros((6, 6))
     W = skew(w)
     ad[:3, :3] = W
-    ad[:3, 3:] = -skew(v)
+    ad[:3, 3:] = skew(v)
     ad[3:, 3:] = W
-    if theta < _TINY:
-        gamma = 1.0 / 12.0
-    else:
-        gamma = 1.0 / theta**2 - (1.0 + np.cos(theta)) / (2.0 * theta * np.sin(theta))
-    return np.eye(6) - 0.5 * ad + gamma * (ad @ ad)
+    # J_l(xi) = sum_n (-1)^n/(n+1)! ad^n = (I - exp(-ad)) ad^{-1}.
+    # The se(3) inverse is NOT the truncated SO(3) form ``I - 1/2 ad + gamma ad^2``
+    # (that drops the translation/rotation coupling in ad^3 and above); the series
+    # converges rapidly (theta <= pi for a principal log) and the 6x6 inverse is
+    # exact to machine precision.
+    Jl = np.eye(6)
+    term = np.eye(6)
+    for k in range(1, 60):
+        term = term @ (-ad) / (k + 1)
+        Jl = Jl + term
+    return np.linalg.inv(Jl)
 
 
 class SE3Metric:
@@ -917,7 +922,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
             best_z = z
             best_opt = opt
 
-    g_true = _finite_diff_gradient(fg, best_z)
+    g_true = _finite_diff_gradient(fg, best_z, lower, upper, tol_bounds)
     opt_norm = _projected_gradient_norm(g_true, best_z, lower, upper, tol_bounds)
     bounds_ok = bool(np.all(best_z >= lower - tol_bounds) and np.all(best_z <= upper + tol_bounds))
     feasible = bool(bounds_ok and np.all(np.isfinite(best_z)) and np.isfinite(best_d))
@@ -945,12 +950,17 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
     )
 
 
-def _finite_diff_gradient(fg, z, h=1e-6):
+def _finite_diff_gradient(fg, z, lower, upper, tol_bounds, h=1e-6):
     g = np.zeros(z.size)
     for i in range(z.size):
-        zp = z.copy(); zp[i] += h
-        zm = z.copy(); zm[i] -= h
-        g[i] = (fg(zp)[0] - fg(zm)[0]) / (2 * h)
+        if lower[i] >= upper[i] - tol_bounds:
+            g[i] = 0.0  # degenerate (fixed) coordinate: no finite difference
+            continue
+        zp = z.copy(); zm = z.copy()
+        zp[i] = min(zp[i] + h, upper[i])   # clamp so fg never leaves the bounds
+        zm[i] = max(zm[i] - h, lower[i])   # (to_transform raises out-of-bounds)
+        denom = zp[i] - zm[i]
+        g[i] = (fg(zp)[0] - fg(zm)[0]) / denom if denom > 0.0 else 0.0
     return g
 ```
 

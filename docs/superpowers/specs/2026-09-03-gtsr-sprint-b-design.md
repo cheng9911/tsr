@@ -61,7 +61,7 @@ se3_hat(xi) / se3_vee(mat)                  # se(3) ↔ ℝ⁶
 so3_log(R) -> omega                          # axis-angle，θ≈0 用极限
 se3_log(T) -> xi                             # [v, ω]
 se3_adjoint(T) -> Ad                         # 6×6，作用于 [v,ω]
-se3_left_jacobian_inverse(xi) -> J_l⁻¹       # 6×6（左 Jacobian 逆，封闭形式）
+se3_left_jacobian_inverse(xi) -> J_l⁻¹       # 6×6（左 Jacobian 逆，精确级数 + 6×6 求逆）
 
 class SE3Metric:
     def __init__(self, rotation_weight=1.0): ...   # w（m/rad），非负有限
