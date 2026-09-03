@@ -5,6 +5,7 @@
 
 from .charts import CanonicalTSRChart, GeneratorChart
 from .domains import CircularInterval, CoordinateDomain, Interval, LinearInterval
+from .region import GTSR
 
 __all__ = [
     "Interval",
@@ -13,4 +14,5 @@ __all__ = [
     "CoordinateDomain",
     "GeneratorChart",
     "CanonicalTSRChart",
+    "GTSR",
 ]

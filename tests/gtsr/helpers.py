@@ -4,6 +4,9 @@
 import numpy as np
 from numpy import pi
 
+from tsr.gtsr.region import GTSR
+from tsr.tsr import TSR
+
 SEEDS = [0, 1, 7, 42, 20260902]
 DIFF_SAMPLES_PER_SEED = 1000
 
@@ -56,3 +59,9 @@ def random_bounds(rng):
         Bw[i, 0] = lo
         Bw[i, 1] = lo + width
     return Bw
+
+
+def make_pair(T0_w=None, Tw_e=None, Bw=None):
+    old = TSR(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
+    new = GTSR.canonical(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
+    return old, new

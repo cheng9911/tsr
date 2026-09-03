@@ -2,8 +2,17 @@
 # Copyright (c) 2025 Siddhartha Srinivasa
 
 import numpy as np
+import pytest
 from numpy import pi
 
+from tests.gtsr.helpers import (
+    DIFF_SAMPLES_PER_SEED,
+    SEEDS,
+    assert_transforms_close,
+    make_pair,
+    random_bounds,
+    random_se3,
+)
 from tsr.gtsr.charts import CanonicalTSRChart
 from tsr.tsr import TSR
 
@@ -70,3 +79,108 @@ def test_rot_within_rpy_bounds_matches_oracle():
             assert rpy_new is None
         else:
             np.testing.assert_allclose(rpy_new, rpy_old, atol=1e-12)
+
+
+# --- E-series: canonical embedding differential against the oracle ---
+
+
+def _trans(xyz, rpy):
+    return TSR.xyzrpy_to_trans(np.hstack([xyz, rpy]))
+
+
+def test_E01_fixed_point():
+    old, new = make_pair(Bw=np.zeros((6, 2)))
+    assert_transforms_close(old.to_transform(np.zeros(6)), new.to_transform(np.zeros(6)))
+
+
+def test_E02_translation_only():
+    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.2, 0.2]
+    old, new = make_pair(Bw=Bw)
+    z = np.array([0.1, -0.05, 0.15, 0.0, 0.0, 0.0])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E03_rotation_axes():
+    Bw = np.zeros((6, 2)); Bw[3] = [-pi / 4, pi / 4]
+    old, new = make_pair(Bw=Bw)
+    assert_transforms_close(old.to_transform([0, 0, 0, 0.3, 0, 0]), new.to_transform([0, 0, 0, 0.3, 0, 0]))
+    Bw[4] = [-pi / 4, pi / 4]
+    old, new = make_pair(Bw=Bw)
+    assert_transforms_close(old.to_transform([0, 0, 0, 0.3, 0.2, 0]), new.to_transform([0, 0, 0, 0.3, 0.2, 0]))
+    Bw[5] = [-pi / 4, pi / 4]
+    old, new = make_pair(Bw=Bw)
+    assert_transforms_close(old.to_transform([0, 0, 0, 0.3, 0.2, -0.1]), new.to_transform([0, 0, 0, 0.3, 0.2, -0.1]))
+
+
+def test_E04_all_angles_nonzero():
+    Bw = np.zeros((6, 2)); Bw[3:6] = [-pi / 2, pi / 2]
+    old, new = make_pair(Bw=Bw)
+    z = np.array([0, 0, 0, 0.3, -0.4, 0.5])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E05_nonunit_T0_w():
+    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    T0_w = _trans([0.5, -0.3, 1.2], [0.4, -0.5, 1.1])
+    old, new = make_pair(T0_w=T0_w, Bw=Bw)
+    z = np.array([0.05, -0.02, 0.03, 0.1, -0.1, 0.2])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E06_nonunit_Tw_e():
+    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    Tw_e = _trans([0.0, 0.0, 0.15], [0.0, 1.2, -0.7])
+    old, new = make_pair(Tw_e=Tw_e, Bw=Bw)
+    z = np.array([0.05, -0.02, 0.03, 0.1, -0.1, 0.2])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E07_both_frames_nonunit():
+    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    T0_w = _trans([0.5, -0.3, 1.2], [0.4, -0.5, 1.1])
+    Tw_e = _trans([0.0, 0.0, 0.15], [0.0, 1.2, -0.7])
+    old, new = make_pair(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
+    z = np.array([0.05, -0.02, 0.03, 0.1, -0.1, 0.2])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E08_wrap_and_outer_and_full():
+    Bw = np.zeros((6, 2))
+    Bw[0:3] = [-0.1, 0.1]
+    Bw[3] = [3 * pi / 4, -3 * pi / 4]  # outer
+    Bw[4] = [-pi, pi]                  # full
+    Bw[5] = [pi / 2 - 1e-6, -pi / 2 + 1e-6]
+    old, new = make_pair(Bw=Bw)
+    for z in [[0, 0, 0, pi, 0, pi], [0, 0, 0, -pi, 0.3, -2.0], [0.05, 0, 0, 0.9 * pi, -0.4, 2.0]]:
+        assert_transforms_close(old.to_transform(np.array(z)), new.to_transform(np.array(z)))
+
+
+def test_E09_pitch_singularity():
+    Bw = np.zeros((6, 2)); Bw[3:6] = [-pi, pi]
+    old, new = make_pair(Bw=Bw)
+    for pitch in [pi / 2, -pi / 2, pi / 2 - 1e-6, pi / 2 + 1e-6, -pi / 2 + 1e-6]:
+        z = np.array([0, 0, 0, 0.3, pitch, 0.5])
+        assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E10_degenerate_and_mixed():
+    Bw = np.zeros((6, 2))
+    Bw[0] = [0.1, 0.1]     # fixed x
+    Bw[1:3] = [-0.2, 0.2]  # free y,z
+    Bw[3] = [0.5, 0.5]     # fixed roll
+    Bw[4:6] = [-pi / 4, pi / 4]
+    old, new = make_pair(Bw=Bw)
+    z = np.array([0.1, 0.05, -0.05, 0.5, 0.1, -0.1])
+    assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_diff_5000_samples(seed):
+    rng = np.random.default_rng(seed)
+    for _ in range(DIFF_SAMPLES_PER_SEED):
+        T0_w = random_se3(rng)
+        Tw_e = random_se3(rng)
+        Bw = random_bounds(rng)
+        old, new = make_pair(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
+        z = new.domain.sample(rng)
+        assert_transforms_close(old.to_transform(z), new.to_transform(z))
