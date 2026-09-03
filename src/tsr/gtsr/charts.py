@@ -9,6 +9,8 @@ import numpy as np
 from numpy import pi
 
 from ..utils import EPSILON, wrap_to_interval
+from ._validation import finite_matrix, finite_vector, rotation_matrix, se3_transform
+from .domains import CoordinateDomain
 
 
 class GeneratorChart(ABC):
@@ -39,7 +41,7 @@ class CanonicalTSRChart(GeneratorChart):
 
     @staticmethod
     def xyzrpy_to_trans(xyzrpy):
-        xyzrpy = np.asarray(xyzrpy, dtype=float)
+        xyzrpy = finite_vector(xyzrpy, 6, "xyzrpy")
         trans = np.zeros((4, 4))
         trans[3, 3] = 1.0
         trans[0:3, 3] = xyzrpy[0:3]
@@ -48,7 +50,7 @@ class CanonicalTSRChart(GeneratorChart):
 
     @staticmethod
     def rpy_to_rot(rpy):
-        rpy = np.asarray(rpy, dtype=float)
+        rpy = finite_vector(rpy, 3, "rpy")
         rot = np.zeros((3, 3))
         r, p, y = rpy[0], rpy[1], rpy[2]
         rot[0, 0] = np.cos(p) * np.cos(y)
@@ -63,18 +65,97 @@ class CanonicalTSRChart(GeneratorChart):
         return rot
 
     def coordinates(self, T_local, domain):
-        """Inverse map: local transform -> coordinate vector (bounds-consistent rpy)."""
+        """Return pose-accurate coordinates for a local transform.
+
+        Euler coordinates are not unique.  This method chooses one canonical
+        solution, but guarantees pose reconstruction even at and arbitrarily
+        close to gimbal lock.  Legacy EPSILON-tolerant membership remains in
+        the ``*_within_bounds`` helpers and is intentionally not used here.
+        """
+        T_local = se3_transform(T_local, "T_local")
+        if not isinstance(domain, CoordinateDomain):
+            raise TypeError("domain must be a CoordinateDomain")
+        if domain.dim != self.dim:
+            raise ValueError(f"chart/domain dimension mismatch: {self.dim} != {domain.dim}")
+        if any(not domain.intervals[i].periodic for i in range(3, 6)):
+            raise ValueError("canonical rotation coordinates require circular domain intervals")
         xyz = T_local[0:3, 3]
         rot = T_local[0:3, 0:3]
-        rpy_bounds = np.column_stack((domain.cont_lower[3:6], domain.cont_upper[3:6]))
-        rpycheck, rpy = self.rot_within_rpy_bounds(rot, rpy_bounds)
-        if not all(rpycheck):
-            rpy = self.rot_to_rpy(rot)
-        return np.hstack((xyz, rpy))
+        for rpy in self._accurate_rpy_candidates(rot, domain):
+            candidate = np.hstack((xyz, rpy))
+            if all(domain.contains(candidate)) and self._rotation_error(rot, self.rpy_to_rot(rpy)) <= 1e-10:
+                return candidate
+        return np.hstack((xyz, self.accurate_rot_to_rpy(rot)))
+
+    @staticmethod
+    def accurate_rot_to_rpy(rot):
+        """Invert ``Rz(yaw) Ry(pitch) Rx(roll)`` without legacy snapping."""
+        rot = rotation_matrix(rot)
+        cos_pitch = np.hypot(rot[0, 0], rot[1, 0])
+        singular_threshold = 4.0 * np.finfo(float).eps
+        if cos_pitch > singular_threshold:
+            roll = np.arctan2(rot[2, 1], rot[2, 2])
+            pitch = np.arctan2(-rot[2, 0], cos_pitch)
+            yaw = np.arctan2(rot[1, 0], rot[0, 0])
+        elif rot[2, 0] < 0.0:
+            roll = np.arctan2(rot[0, 1], rot[0, 2])
+            pitch = pi / 2
+            yaw = 0.0
+        else:
+            roll = np.arctan2(-rot[0, 1], -rot[0, 2])
+            pitch = -pi / 2
+            yaw = 0.0
+        return np.array([roll, pitch, yaw])
+
+    @classmethod
+    def _accurate_rpy_candidates(cls, rot, domain):
+        """Return reconstructing Euler solutions, with domain-feasible ones first."""
+        primary = cls.accurate_rot_to_rpy(rot)
+        roll, pitch, yaw = primary
+        cos_pitch = np.hypot(rot[0, 0], rot[1, 0])
+        singular_threshold = 4.0 * np.finfo(float).eps
+        if cos_pitch > singular_threshold:
+            alternate = np.array([roll + pi, pi - pitch, yaw + pi])
+            return [primary, cls._wrap_rpy(alternate)]
+
+        roll_interval = domain.intervals[3]
+        yaw_interval = domain.intervals[5]
+        roll_values = [
+            roll_interval.lo_cont,
+            (roll_interval.lo_cont + roll_interval.hi_cont) / 2.0,
+            roll_interval.hi_cont,
+        ]
+        yaw_values = [
+            yaw_interval.lo_cont,
+            (yaw_interval.lo_cont + yaw_interval.hi_cont) / 2.0,
+            yaw_interval.hi_cont,
+        ]
+        if pitch > 0.0:
+            offset = np.arctan2(rot[0, 1], rot[0, 2])
+            singular = [np.array([value + offset, pitch, value]) for value in yaw_values]
+            singular.extend(np.array([value, pitch, value - offset]) for value in roll_values)
+        else:
+            offset = np.arctan2(-rot[0, 1], -rot[0, 2])
+            singular = [np.array([offset - value, pitch, value]) for value in yaw_values]
+            singular.extend(np.array([value, pitch, offset - value]) for value in roll_values)
+        singular.extend(np.array([r, pitch, y]) for r in roll_values for y in yaw_values)
+        return singular + [primary]
+
+    @staticmethod
+    def _wrap_rpy(rpy):
+        return (np.asarray(rpy) + pi) % (2 * pi) - pi
+
+    @staticmethod
+    def _rotation_error(first, second):
+        delta = first.T @ second
+        skew = delta - delta.T
+        vee = np.array([skew[2, 1], skew[0, 2], skew[1, 0]])
+        return np.arctan2(0.5 * np.linalg.norm(vee), 0.5 * (np.trace(delta) - 1.0))
 
     @staticmethod
     def rot_to_rpy(rot):
-        rot = np.asarray(rot, dtype=float)
+        """Legacy inverse used by compatibility distance calculations."""
+        rot = rotation_matrix(rot)
         rpy = np.zeros(3)
         if not (abs(abs(rot[2, 0]) - 1) < EPSILON):
             p = -np.arcsin(rot[2, 0])
@@ -96,8 +177,8 @@ class CanonicalTSRChart(GeneratorChart):
 
     @staticmethod
     def xyz_within_bounds(xyz, Bw):
-        xyz = np.asarray(xyz, dtype=float)
-        Bw = np.asarray(Bw, dtype=float)
+        xyz = finite_vector(xyz, 3, "xyz")
+        Bw = finite_matrix(Bw, (3, 2), "Bw")
         xyzcheck = []
         for i, x in enumerate(xyz):
             x_val = x.item() if hasattr(x, "item") else float(x)
@@ -106,8 +187,8 @@ class CanonicalTSRChart(GeneratorChart):
 
     @staticmethod
     def rpy_within_bounds(rpy, Bw):
-        rpy = np.asarray(rpy, dtype=float)
-        Bw = np.asarray(Bw, dtype=float)
+        rpy = finite_vector(rpy, 3, "rpy")
+        Bw = finite_matrix(Bw, (3, 2), "Bw")
         rpy = wrap_to_interval(rpy, lower=Bw[:3, 0])
         rpycheck = [False] * 3
         for i in range(3):
@@ -119,8 +200,8 @@ class CanonicalTSRChart(GeneratorChart):
 
     @staticmethod
     def rot_within_rpy_bounds(rot, Bw):
-        rot = np.asarray(rot, dtype=float)
-        Bw = np.asarray(Bw, dtype=float)
+        rot = rotation_matrix(rot)
+        Bw = finite_matrix(Bw, (3, 2), "Bw")
         if not (abs(abs(rot[2, 0]) - 1) < EPSILON):
             psol = -np.arcsin(rot[2, 0])
             for p in [psol, (pi - psol)]:

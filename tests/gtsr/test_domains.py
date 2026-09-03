@@ -62,6 +62,32 @@ def test_circular_interval_full():
         assert iv.contains(x) is True
 
 
+@pytest.mark.parametrize(
+    ("period", "lower", "upper", "inside", "outside"),
+    [
+        (360.0, 300.0, 60.0, [350.0, -10.0, 30.0, 710.0], [180.0, -180.0]),
+        (1.0, 0.4, -0.4, [0.45, -0.45, 1.45], [0.0, 1.0]),
+    ],
+)
+def test_circular_interval_custom_period(period, lower, upper, inside, outside):
+    iv = CircularInterval(lower, upper, period=period)
+    for value in inside:
+        assert iv.contains(value) is True
+    for value in outside:
+        assert iv.contains(value) is False
+    mapped = [iv.map_from_unit(u) for u in [0.0, 0.25, 0.75]]
+    assert all(iv.contains(value) for value in mapped)
+
+
+@pytest.mark.parametrize(
+    ("lower", "upper", "period"),
+    [(0.0, 361.0, 360.0), (0.0, -361.0, 360.0), (0.0, 1.01, 1.0), (0.0, -1.01, 1.0)],
+)
+def test_circular_interval_rejects_more_than_one_raw_period(lower, upper, period):
+    with pytest.raises(ValueError, match="raw span must be within one period"):
+        CircularInterval(lower, upper, period=period)
+
+
 # --- D-05 ---------------------------------------------------------------
 def test_domain_dimension_error():
     dom = CoordinateDomain([LinearInterval(0, 1), LinearInterval(0, 1)])
@@ -69,6 +95,29 @@ def test_domain_dimension_error():
         dom.contains(np.array([0.5]))
     with pytest.raises(ValueError):
         dom.map_from_unit_cube(np.array([0.5]))
+
+
+def test_domain_rejects_nonfinite_and_out_of_unit_inputs():
+    dom = CoordinateDomain([LinearInterval(0, 1)])
+    with pytest.raises(ValueError, match="finite"):
+        dom.contains([np.nan])
+    with pytest.raises(ValueError, match=r"\[0, 1\)"):
+        dom.map_from_unit_cube([1.1])
+    with pytest.raises(ValueError, match=r"\[0, 1\)"):
+        dom.map_from_unit_cube([1.0])
+
+
+def test_from_bounds_validates_metadata_lengths_and_types():
+    with pytest.raises(ValueError, match="Bw must have shape"):
+        CoordinateDomain.from_bounds(np.zeros((2, 2)), (False, False, False))
+    with pytest.raises(ValueError, match="periods must have length"):
+        CoordinateDomain.from_bounds(np.zeros((2, 2)), (False, True), (None,))
+    with pytest.raises(ValueError, match="must be None"):
+        CoordinateDomain.from_bounds(np.zeros((1, 2)), (False,), (2 * pi,))
+    with pytest.raises(TypeError, match="booleans"):
+        CoordinateDomain.from_bounds(np.zeros((2, 2)), (False, 1))
+    with pytest.raises(ValueError, match="finite"):
+        CoordinateDomain.from_bounds([[0.0, np.inf]], (False,))
 
 
 # --- D-06 ---------------------------------------------------------------
@@ -81,28 +130,32 @@ def test_linear_interval_aperiodic():
 
 # --- D-07 ---------------------------------------------------------------
 def test_sampling_reproducible():
-    dom = CoordinateDomain([
-        LinearInterval(-0.1, 0.1),
-        LinearInterval(-0.1, 0.1),
-        LinearInterval(-0.1, 0.1),
-        CircularInterval(-pi, pi),
-        CircularInterval(-pi / 2, pi / 2),
-        CircularInterval(3 * pi / 4, -3 * pi / 4),
-    ])
+    dom = CoordinateDomain(
+        [
+            LinearInterval(-0.1, 0.1),
+            LinearInterval(-0.1, 0.1),
+            LinearInterval(-0.1, 0.1),
+            CircularInterval(-pi, pi),
+            CircularInterval(-pi / 2, pi / 2),
+            CircularInterval(3 * pi / 4, -3 * pi / 4),
+        ]
+    )
     s1 = dom.sample(np.random.default_rng(42))
     s2 = dom.sample(np.random.default_rng(42))
     np.testing.assert_array_equal(s1, s2)
 
 
 def test_from_bounds_and_contains():
-    Bw = np.array([
-        [-0.1, 0.1],
-        [-0.1, 0.1],
-        [0.0, 0.02],
-        [-pi / 4, pi / 4],
-        [-pi / 4, pi / 4],
-        [3 * pi / 4, -3 * pi / 4],
-    ])
+    Bw = np.array(
+        [
+            [-0.1, 0.1],
+            [-0.1, 0.1],
+            [0.0, 0.02],
+            [-pi / 4, pi / 4],
+            [-pi / 4, pi / 4],
+            [3 * pi / 4, -3 * pi / 4],
+        ]
+    )
     periodic = (False, False, False, True, True, True)
     dom = CoordinateDomain.from_bounds(Bw, periodic)
     assert dom.dim == 6

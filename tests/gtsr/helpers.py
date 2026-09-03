@@ -25,9 +25,10 @@ def transform_error(T_old, T_new):
     return e_t, e_R
 
 
-def assert_transforms_close(T_old, T_new, tol=1e-10):
+def assert_transforms_close(T_old, T_new, tol=1e-10, context=None):
     e_t, e_R = transform_error(T_old, T_new)
-    assert max(e_t, e_R) <= tol, f"pose mismatch: e_t={e_t:.3e}, e_R={e_R:.3e}"
+    detail = f"; {context}" if context else ""
+    assert max(e_t, e_R) <= tol, f"pose mismatch: e_t={e_t:.3e}, e_R={e_R:.3e}{detail}"
 
 
 def random_rotation(rng):
@@ -55,9 +56,14 @@ def random_bounds(rng):
     Bw[0:3, 1] = Bw[0:3, 0] + rng.uniform(0.0, 0.5, size=3)
     for i in range(3, 6):
         lo = rng.uniform(-pi, pi)
-        width = rng.uniform(0.0, 2.0 * pi)
         Bw[i, 0] = lo
-        Bw[i, 1] = lo + width
+        mode = rng.integers(3)
+        if mode == 0:
+            Bw[i, 1] = lo + rng.uniform(0.0, 2.0 * pi)
+        elif mode == 1:
+            Bw[i, 1] = lo - rng.uniform(0.0, 2.0 * pi)
+        else:
+            Bw[i, 1] = lo + 2.0 * pi
     return Bw
 
 

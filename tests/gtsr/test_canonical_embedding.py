@@ -14,6 +14,7 @@ from tests.gtsr.helpers import (
     random_se3,
 )
 from tsr.gtsr.charts import CanonicalTSRChart
+from tsr.gtsr.region import GTSR
 from tsr.tsr import TSR
 
 
@@ -59,8 +60,8 @@ def test_rpy_to_rot_matches_oracle():
         np.testing.assert_allclose(chart.rpy_to_rot(np.array(rpy)), TSR.rpy_to_rot(np.array(rpy)), atol=1e-15)
 
 
-def test_rot_to_rpy_roundtrip_matches_oracle():
-    # 逆映射与旧实现逐位一致（含奇异点附近）
+def test_legacy_rot_to_rpy_matches_oracle():
+    # Legacy helper stays byte-for-byte compatible for contains/distance.
     chart = CanonicalTSRChart()
     for rpy in [[0.3, 0.4, 0.5], [0.3, pi / 2, 0.5], [0.3, pi / 2 - 1e-6, 0.5], [0.1, -0.2, 0.3]]:
         R = TSR.rpy_to_rot(np.array(rpy))
@@ -94,14 +95,16 @@ def test_E01_fixed_point():
 
 
 def test_E02_translation_only():
-    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.2, 0.2]
+    Bw = np.zeros((6, 2))
+    Bw[0:3] = [-0.2, 0.2]
     old, new = make_pair(Bw=Bw)
     z = np.array([0.1, -0.05, 0.15, 0.0, 0.0, 0.0])
     assert_transforms_close(old.to_transform(z), new.to_transform(z))
 
 
 def test_E03_rotation_axes():
-    Bw = np.zeros((6, 2)); Bw[3] = [-pi / 4, pi / 4]
+    Bw = np.zeros((6, 2))
+    Bw[3] = [-pi / 4, pi / 4]
     old, new = make_pair(Bw=Bw)
     assert_transforms_close(old.to_transform([0, 0, 0, 0.3, 0, 0]), new.to_transform([0, 0, 0, 0.3, 0, 0]))
     Bw[4] = [-pi / 4, pi / 4]
@@ -113,14 +116,17 @@ def test_E03_rotation_axes():
 
 
 def test_E04_all_angles_nonzero():
-    Bw = np.zeros((6, 2)); Bw[3:6] = [-pi / 2, pi / 2]
+    Bw = np.zeros((6, 2))
+    Bw[3:6] = [-pi / 2, pi / 2]
     old, new = make_pair(Bw=Bw)
     z = np.array([0, 0, 0, 0.3, -0.4, 0.5])
     assert_transforms_close(old.to_transform(z), new.to_transform(z))
 
 
 def test_E05_nonunit_T0_w():
-    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    Bw = np.zeros((6, 2))
+    Bw[0:3] = [-0.1, 0.1]
+    Bw[3:6] = [-pi / 4, pi / 4]
     T0_w = _trans([0.5, -0.3, 1.2], [0.4, -0.5, 1.1])
     old, new = make_pair(T0_w=T0_w, Bw=Bw)
     z = np.array([0.05, -0.02, 0.03, 0.1, -0.1, 0.2])
@@ -128,7 +134,9 @@ def test_E05_nonunit_T0_w():
 
 
 def test_E06_nonunit_Tw_e():
-    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    Bw = np.zeros((6, 2))
+    Bw[0:3] = [-0.1, 0.1]
+    Bw[3:6] = [-pi / 4, pi / 4]
     Tw_e = _trans([0.0, 0.0, 0.15], [0.0, 1.2, -0.7])
     old, new = make_pair(Tw_e=Tw_e, Bw=Bw)
     z = np.array([0.05, -0.02, 0.03, 0.1, -0.1, 0.2])
@@ -136,7 +144,9 @@ def test_E06_nonunit_Tw_e():
 
 
 def test_E07_both_frames_nonunit():
-    Bw = np.zeros((6, 2)); Bw[0:3] = [-0.1, 0.1]; Bw[3:6] = [-pi / 4, pi / 4]
+    Bw = np.zeros((6, 2))
+    Bw[0:3] = [-0.1, 0.1]
+    Bw[3:6] = [-pi / 4, pi / 4]
     T0_w = _trans([0.5, -0.3, 1.2], [0.4, -0.5, 1.1])
     Tw_e = _trans([0.0, 0.0, 0.15], [0.0, 1.2, -0.7])
     old, new = make_pair(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
@@ -148,7 +158,7 @@ def test_E08_wrap_and_outer_and_full():
     Bw = np.zeros((6, 2))
     Bw[0:3] = [-0.1, 0.1]
     Bw[3] = [3 * pi / 4, -3 * pi / 4]  # outer
-    Bw[4] = [-pi, pi]                  # full
+    Bw[4] = [-pi, pi]  # full
     Bw[5] = [pi / 2 - 1e-6, -pi / 2 + 1e-6]
     old, new = make_pair(Bw=Bw)
     for z in [[0, 0, 0, pi, 0, pi], [0, 0, 0, -pi, 0.3, -2.0], [0.05, 0, 0, 0.9 * pi, -0.4, 2.0]]:
@@ -156,7 +166,8 @@ def test_E08_wrap_and_outer_and_full():
 
 
 def test_E09_pitch_singularity():
-    Bw = np.zeros((6, 2)); Bw[3:6] = [-pi, pi]
+    Bw = np.zeros((6, 2))
+    Bw[3:6] = [-pi, pi]
     old, new = make_pair(Bw=Bw)
     for pitch in [pi / 2, -pi / 2, pi / 2 - 1e-6, pi / 2 + 1e-6, -pi / 2 + 1e-6]:
         z = np.array([0, 0, 0, 0.3, pitch, 0.5])
@@ -165,9 +176,9 @@ def test_E09_pitch_singularity():
 
 def test_E10_degenerate_and_mixed():
     Bw = np.zeros((6, 2))
-    Bw[0] = [0.1, 0.1]     # fixed x
+    Bw[0] = [0.1, 0.1]  # fixed x
     Bw[1:3] = [-0.2, 0.2]  # free y,z
-    Bw[3] = [0.5, 0.5]     # fixed roll
+    Bw[3] = [0.5, 0.5]  # fixed roll
     Bw[4:6] = [-pi / 4, pi / 4]
     old, new = make_pair(Bw=Bw)
     z = np.array([0.1, 0.05, -0.05, 0.5, 0.1, -0.1])
@@ -177,10 +188,64 @@ def test_E10_degenerate_and_mixed():
 @pytest.mark.parametrize("seed", SEEDS)
 def test_diff_5000_samples(seed):
     rng = np.random.default_rng(seed)
-    for _ in range(DIFF_SAMPLES_PER_SEED):
+    for iteration in range(DIFF_SAMPLES_PER_SEED):
         T0_w = random_se3(rng)
         Tw_e = random_se3(rng)
         Bw = random_bounds(rng)
         old, new = make_pair(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
         z = new.domain.sample(rng)
-        assert_transforms_close(old.to_transform(z), new.to_transform(z))
+        assert_transforms_close(
+            old.to_transform(z),
+            new.to_transform(z),
+            context=f"seed={seed}, iteration={iteration}, z={z!r}, Bw={Bw!r}",
+        )
+
+
+@pytest.mark.parametrize("pitch_sign", [-1.0, 1.0])
+@pytest.mark.parametrize("delta", [0.0, 1e-12, 1e-9, 1e-6, 1e-4, 1e-2])
+@pytest.mark.parametrize("delta_sign", [-1.0, 1.0])
+def test_coordinates_reconstructs_near_pitch_singularities(pitch_sign, delta, delta_sign):
+    chart = CanonicalTSRChart()
+    domain = GTSR.canonical(Bw=np.column_stack((-pi * np.ones(6), pi * np.ones(6)))).domain
+    pitch = pitch_sign * pi / 2 + delta_sign * delta
+    z = np.array([0.1, -0.2, 0.3, 0.7, pitch, -1.1])
+    T_local = chart.forward(z)
+    recovered = chart.coordinates(T_local, domain)
+    assert_transforms_close(
+        T_local,
+        chart.forward(recovered),
+        context=f"pitch_sign={pitch_sign}, delta={delta}, delta_sign={delta_sign}, recovered={recovered!r}",
+    )
+
+
+@pytest.mark.parametrize("pitch", [2.0, pi / 2, -pi / 2])
+def test_coordinates_selects_domain_feasible_nonprincipal_solution(pitch):
+    Bw = np.zeros((6, 2))
+    Bw[3] = [0.6, 0.8]
+    Bw[4] = [pitch - 0.1, pitch + 0.1] if abs(pitch) != pi / 2 else [pitch, pitch]
+    Bw[5] = [-1.2, -1.0]
+    region = GTSR.canonical(Bw=Bw)
+    z = np.array([0.0, 0.0, 0.0, 0.7, pitch, -1.1])
+    T_local = region.chart.forward(z)
+    recovered = region.chart.coordinates(T_local, region.domain)
+    assert all(region.domain.contains(recovered)), f"recovered={recovered!r}, Bw={Bw!r}"
+    assert_transforms_close(T_local, region.chart.forward(recovered), context=f"recovered={recovered!r}, Bw={Bw!r}")
+
+
+def test_coordinates_exact_singularity_preserves_wrapped_domain_endpoint():
+    Bw = np.array(
+        [
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [1.71970663, 1.92542320],
+            [-pi / 2, -pi / 2],
+            [2.32322348, 2.85843471],
+        ]
+    )
+    region = GTSR.canonical(Bw=Bw)
+    z = np.array([0.0, 0.0, 0.0, 1.82256492, -pi / 2, 2.59082909])
+    T_local = region.chart.forward(z)
+    recovered = region.chart.coordinates(T_local, region.domain)
+    assert all(region.domain.contains(recovered)), f"recovered={recovered!r}, Bw={Bw!r}"
+    assert_transforms_close(T_local, region.chart.forward(recovered), context=f"recovered={recovered!r}, Bw={Bw!r}")

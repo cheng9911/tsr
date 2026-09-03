@@ -1,7 +1,7 @@
 # G-TSR Sprint A — 实现级设计（canonical 嵌入）
 
-状态：`APPROVED`
-日期：`2026-09-02`
+状态：`IMPLEMENTED / G1 VERIFIED`
+日期：`2026-09-03`
 上游：`docs/gtsr_geometry_validation_plan.md`（§8、§9 Sprint A、§11 硬门 G1）
 
 本文档把上游验证方案的"数学契约"落到"代码级 API"。范围严格限定在 **Sprint A**：
@@ -11,8 +11,9 @@ canonical 嵌入 + 旧 TSR 精确兼容。不实现 PoE、metric、project、严
 
 **本 Sprint 交付：**
 
-- `src/tsr/gtsr/domains.py`、`charts.py`、`region.py`、`__init__.py`
-- `tests/gtsr/conftest.py`、`test_domains.py`、`test_canonical_embedding.py`、`test_canonical_compatibility.py`
+- `src/tsr/gtsr/_validation.py`、`domains.py`、`charts.py`、`region.py`、`__init__.py`
+- `tests/gtsr/conftest.py`、`test_domains.py`、`test_canonical_embedding.py`、
+  `test_canonical_compatibility.py`、`test_public_contracts.py`
 - 硬门 G1 全绿。
 
 **不变量（贯穿全部测试）：**
@@ -59,12 +60,13 @@ class LinearInterval(Interval):
     def __init__(self, lower, upper): ...
 
 class CircularInterval(Interval):
-    # periodic=True, period=2π
+    # periodic=True, period 默认 2π，也支持显式自定义 period
     # 构造时把 raw(lower,upper) 一次性转连续区间：
-    #   lo_cont = wrap_to_interval(lower)                  # → [-π, π)
-    #   interval = upper - lower; if interval<0: += 2π; interval = min(interval, 2π)
+    #   lo_cont = period-aware wrap(lower)                 # → [-period/2, period/2)
+    #   interval = upper-lower; if interval<0: += period
     #   hi_cont = lo_cont + interval
-    # contains(x) = lo_cont <= wrap_to_interval(x, lower=lo_cont) <= hi_cont
+    # raw span 限制在一个周期内，避免多周期输入的歧义
+    # contains(x) = lo_cont <= period-aware-wrap(x, lower=lo_cont) <= hi_cont
     def __init__(self, lower, upper, period=2*pi): ...
 
 class CoordinateDomain:
@@ -95,17 +97,20 @@ class CanonicalTSRChart(GeneratorChart):
     periodic = (False, False, False, True, True, True)
     periods = (None, None, None, 2*pi, 2*pi, 2*pi)
     def forward(self, z) -> np.ndarray                # xyzrpy_to_trans
-    def coordinates(self, T_local, domain) -> np.ndarray  # 逆映射
-    # 旧 TSR 的欧拉角数学整体迁入（canonical 专属）：
-    @staticmethod rot_to_rpy(rot) -> rpy
+    def coordinates(self, T_local, domain) -> np.ndarray  # 精确、domain-aware 逆映射
+    @staticmethod accurate_rot_to_rpy(rot) -> rpy         # 数值精度奇点判定
+    # 旧 TSR 的欧拉角数学保留在 legacy helper 中（canonical 专属）：
+    @staticmethod rot_to_rpy(rot) -> rpy                  # EPSILON legacy 语义
     @staticmethod rpy_to_rot(rpy) -> rot
     @staticmethod xyz_within_bounds(xyz, bounds) -> bool[3]      # EPSILON
     @staticmethod rpy_within_bounds(rpy, bounds) -> bool[3]      # EPSILON
     @staticmethod rot_within_rpy_bounds(rot, rpy_bounds) -> (bool[3], rpy|None)  # EPSILON
 ```
 
-`coordinates` 复刻旧 `to_xyzrpy`：`xyz` 直接取；`rpy` 走 `rot_within_rpy_bounds`
-（找到 bounds 一致解则用之，否则 fallback `rot_to_rpy`）。
+`coordinates` 不再复刻旧 `to_xyzrpy` 的宽松奇点判定。它使用数值精度级奇点阈值，枚举等价
+Euler 解并优先返回 domain 内的解；验证契约是
+`forward(coordinates(T_local, domain))` 在位姿级重构 `T_local`，误差不超过 `1e-10`。
+旧 `EPSILON=1e-3` 行为只保留在 `contains` 和 legacy `distance` 使用的 helper 中。
 
 ### 3.3 region.py — 区域级组合
 
@@ -126,13 +131,18 @@ class GTSR:
     def sample(self, partial=NANBW) -> np.ndarray
 ```
 
+构造时校验 chart/domain 维数、周期元数据和 `T0_w/Tw_e∈SE(3)`，并防御性复制外部矩阵。
+Sprint A 允许任意 chart 使用 `to_transform` 前向组合；`to_xyzrpy/is_valid/contains/distance/sample`
+仍明确限制为 `CanonicalTSRChart`，通用区域运算留到 Sprint B。
+
 **兼容策略（关键）：**
 
 - `GTSR.contains` **不复用** clean `domain.contains`，而是走 chart 的 `*_within_bounds`
   （带 `EPSILON=1e-3`）+ domain 连续边界，逐位复刻旧 `TSR.contains`。
 - clean `domain.contains` 留给 D-01~D-07 与后续 Sprint B 的通用 membership。
 - `distance` 完整重写 `_displacement_to_tsr`（9 个 rpy 冗余候选）+ `bwopt` clip/wrap。
-- `sample_xyzrpy` 走 `domain.map_from_unit_cube(u)`，不各自调 RNG。
+- `sample_xyzrpy` 对每个 `NaN` 坐标按索引顺序消耗一次 RNG；固定坐标不消耗随机数，
+  从而保持 legacy 随机流语义。单坐标映射委托给对应 interval。
 
 ## 4. 数据流
 
@@ -147,6 +157,7 @@ u ──map_from_unit_cube──> z（周期轴 wrap）
 - `test_domains.py`：D-01~D-07。
 - `test_canonical_embedding.py`：E-01~E-10（前向映射差分）+ 每 seed 1000、共 5000 差分样本。
 - `test_canonical_compatibility.py`：C-01~C-05（contains 边界语料、distance、采样映射、往返）。
+- `test_public_contracts.py`：shape、有限性、合法 `SE(3)`、chart/domain 元数据及防御性复制。
 
 `conftest.py` 提供：固定 `SEEDS`、合法 `SE(3)` 生成器（QR/Gram-Schmidt，非任意 4×4）、
 位姿误差助手（`e_t` + `atan2 e_R`）、`rng` fixture、old/new 构造助手。
@@ -155,6 +166,10 @@ u ──map_from_unit_cube──> z（周期轴 wrap）
 
 - E-01~E-10 全通过；
 - 5000 差分样本 `max(e_t, e_R) <= 1e-10`；
+- canonical 逆映射在 `±π/2`、其两侧固定邻域及随机 domain 中满足位姿往返误差 `<=1e-10`；
 - contains 边界语料与旧实现逐例一致；
 - legacy distance 兼容路径通过；
 - P1 构造映射（`GTSR.canonical`）代码对象逐项对应数学符号 `T0↔T0_w, Te↔Tw_e, C_TSR↔CanonicalTSRChart, Z(Bw)↔CoordinateDomain`。
+
+最终验收（2026-09-03）：`tests/gtsr/` 为 93 passed；仓库全量为 407 passed、1 条旧
+SciPy warning；G-TSR 源码和测试通过 Ruff lint 与 format check。
