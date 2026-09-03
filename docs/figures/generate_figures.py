@@ -722,6 +722,94 @@ orientation:
     print("Generated: fig6_placement_example.png")
 
 
+def fig7_screw_vs_tsr():
+    """Figure 7: a nonzero-finite-pitch screw (1D) vs a z-yaw box (2D).
+
+    The screw ``S_h = {Exp(xi_h q) | q in [-0.5, 0.5]}`` (axis z, pitch
+    ``h = 0.05`` m/rad) maps a reference point on the axis to a 1D helix. The
+    traditional z-yaw box maps that same reference point to a 2D cylinder patch,
+    so the box carries strictly more poses than the screw (evidence, not proof —
+    see ``docs/gtsr_expressivity_proofs.md``).
+    """
+    h = 0.05
+    r = 0.3
+    q = np.linspace(-0.5, 0.5, 200)
+    helix_x = r * np.cos(q)
+    helix_y = r * np.sin(q)
+    helix_z = h * q
+
+    fig = plt.figure(figsize=(13, 5.5))
+
+    # Left: the screw curve S_h (1D helix).
+    ax1 = fig.add_subplot(121, projection="3d")
+    ax1.set_title(r"Screw $S_h$ (1D): $h = 0.05$ m/rad", pad=10)
+    ax1.plot(helix_x, helix_y, helix_z, "b-", linewidth=3)
+    ax1.plot([0, 0], [0, 0], [h * -0.5, h * 0.5], "k--", linewidth=1, alpha=0.7)
+    ax1.text(0.02, 0.02, h * 0.5 + 0.015, "axis $z$", fontsize=9)
+    ax1.scatter([helix_x[0]], [helix_y[0]], [helix_z[0]], color="b", s=30)
+    ax1.scatter([helix_x[-1]], [helix_y[-1]], [helix_z[-1]], color="b", s=30)
+    ax1.text(r, 0, 0.02, "1 turn advances\n$2\\pi h$ along $z$", fontsize=9, color="b")
+    ax1.set_xlim(-r - 0.15, r + 0.15)
+    ax1.set_ylim(-r - 0.15, r + 0.15)
+    ax1.set_zlim(-0.25, 0.25)
+    ax1.set_xlabel("X")
+    ax1.set_ylabel("Y")
+    ax1.set_zlabel("Z")
+    ax1.view_init(elev=20, azim=-50)
+
+    # Right: z-yaw box (2D cylinder patch) with the screw overlaid.
+    ax2 = fig.add_subplot(122, projection="3d")
+    ax2.set_title(r"z-yaw box (2D) $\supset$ screw (1D)", pad=10)
+    rng = np.random.default_rng(20260902)
+    n = 400
+    zs = rng.uniform(-0.5, 0.5, n)
+    yaws = rng.uniform(-0.5, 0.5, n)
+    ax2.scatter(r * np.cos(yaws), r * np.sin(yaws), zs, c="#32CD32", alpha=0.5, s=6, label="box sample cloud")
+    ax2.plot(helix_x, helix_y, helix_z, "b-", linewidth=3, label="$S_h$")
+
+    # Transverse deviation: an off-helix box point vs the nearest helix point.
+    yaw0 = 0.4
+    z0 = 0.2  # on the box, off the helix (helix has z = h * yaw0 = 0.02)
+    p_box = np.array([r * np.cos(yaw0), r * np.sin(yaw0), z0])
+    p_helix = np.array([r * np.cos(yaw0), r * np.sin(yaw0), h * yaw0])
+    ax2.scatter(*p_box, color="red", s=50, zorder=5)
+    ax2.scatter(*p_helix, color="blue", s=50, zorder=5)
+    ax2.plot(
+        [p_box[0], p_helix[0]],
+        [p_box[1], p_helix[1]],
+        [p_box[2], p_helix[2]],
+        "r--",
+        linewidth=2,
+    )
+    ax2.text(
+        p_box[0],
+        p_box[1],
+        (p_box[2] + p_helix[2]) / 2 + 0.03,
+        "transverse\ndeviation",
+        fontsize=9,
+        color="red",
+    )
+    ax2.set_xlim(-r - 0.15, r + 0.15)
+    ax2.set_ylim(-r - 0.15, r + 0.15)
+    ax2.set_zlim(-0.55, 0.55)
+    ax2.set_xlabel("X")
+    ax2.set_ylabel("Y")
+    ax2.set_zlabel("Z")
+    ax2.legend(fontsize=8, loc="upper left")
+    ax2.view_init(elev=20, azim=-50)
+
+    plt.tight_layout()
+    plt.savefig(
+        OUTPUT_DIR / "fig7_screw_vs_tsr.png",
+        dpi=150,
+        bbox_inches="tight",
+        facecolor="white",
+        edgecolor="none",
+    )
+    plt.close()
+    print("Generated: fig7_screw_vs_tsr.png")
+
+
 def main():
     """Generate all figures."""
     print("Generating TSR tutorial figures...")
@@ -734,6 +822,7 @@ def main():
     fig4_primitives()
     fig5_tsr_chain()
     fig6_placement_example()
+    fig7_screw_vs_tsr()
 
     print()
     print("All figures generated successfully!")
