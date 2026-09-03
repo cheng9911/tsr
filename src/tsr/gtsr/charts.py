@@ -11,6 +11,7 @@ from numpy import pi
 from ..utils import EPSILON, wrap_to_interval
 from ._validation import finite_matrix, finite_vector, rotation_matrix, se3_transform
 from .domains import CoordinateDomain
+from .metrics import se3_exp
 
 
 class GeneratorChart(ABC):
@@ -243,3 +244,60 @@ class CanonicalTSRChart(GeneratorChart):
                     if all(rpycheck):
                         return rpycheck, rpy
         return rpycheck, None
+
+
+class PoEChart(GeneratorChart):
+    """Product-of-Exponentials chart.
+
+    ``representation="space"`` -> ``Phi(z) = Exp(S1 z1) ... Exp(Sm zm) M``.
+    ``representation="body"``  -> ``Phi(z) = M Exp(B1 z1) ... Exp(Bm zm)``.
+    ``order`` is an explicit index permutation (default ``0..m-1``); ``M`` is the
+    home transform (Sprint B restricts to ``M=I`` but the interface is kept).
+    """
+
+    _PITCH_TOL = 1e-12
+
+    def __init__(self, axes, representation, order=None, M=None):
+        axes = np.asarray(axes, dtype=float)
+        if axes.ndim != 2 or axes.shape[1] != 6 or axes.shape[0] < 1:
+            raise ValueError("axes must be a non-empty (m, 6) array of screw axes")
+        axes = finite_matrix(axes, axes.shape, "axes")
+        if representation not in ("space", "body"):
+            raise ValueError("representation must be 'space' or 'body'")
+        m = axes.shape[0]
+        if order is None:
+            order = list(range(m))
+        order = [int(i) for i in order]
+        if sorted(order) != list(range(m)):
+            raise ValueError("order must be a permutation of 0..m-1")
+        if M is None:
+            M = np.eye(4)
+        M = se3_transform(M, "M")
+        periodic = []
+        for xi in axes:
+            v, w = xi[0:3], xi[3:6]
+            th = float(np.linalg.norm(w))
+            if th <= self._PITCH_TOL:
+                periodic.append(False)  # pure translation
+            else:
+                pitch = float(np.dot(w, v)) / (th * th)
+                periodic.append(abs(pitch) <= self._PITCH_TOL)
+        periods = tuple(2 * pi if p else None for p in periodic)
+        self.coord_names = tuple(f"q{i}" for i in range(m))
+        self.periodic = tuple(periodic)
+        self.periods = periods
+        self._axes = axes
+        self._representation = representation
+        self._order = order
+        self._M = M
+
+    def forward(self, z):
+        z = finite_vector(z, self.dim, "z")
+        T = self._M.copy()
+        if self._representation == "space":
+            for idx in reversed(self._order):
+                T = se3_exp(self._axes[idx] * z[idx]) @ T
+        else:
+            for idx in self._order:
+                T = T @ se3_exp(self._axes[idx] * z[idx])
+        return T
