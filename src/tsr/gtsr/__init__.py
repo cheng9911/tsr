@@ -8,6 +8,7 @@ from .domains import CircularInterval, CoordinateDomain, Interval, LinearInterva
 from .metrics import SE3Metric
 from .projection import ProjectionResult
 from .region import GTSR
+from .response import ResponseOperator
 
 __all__ = [
     "Interval",
@@ -20,4 +21,5 @@ __all__ = [
     "SE3Metric",
     "ProjectionResult",
     "GTSR",
+    "ResponseOperator",
 ]
