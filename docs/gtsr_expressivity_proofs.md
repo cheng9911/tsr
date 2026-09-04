@@ -3,7 +3,7 @@
 
 # G-TSR 表示能力：严格证明（P1 与 P2）
 
-状态：`CORRECTED / PENDING REVIEW`
+状态：`FROZEN`（2026-09-04 独立复核通过）
 日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.5、§6.6、§11 硬门 G3）
 

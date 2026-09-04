@@ -1,6 +1,6 @@
 # G-TSR 几何内核设计与验证方案
 
-状态：`CORRECTED / PENDING REVIEW`
+状态：`FROZEN`（2026-09-04 审查修订已复核）
 
 版本：`v0.1`
 

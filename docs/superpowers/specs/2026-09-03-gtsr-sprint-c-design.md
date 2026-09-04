@@ -1,6 +1,6 @@
 # G-TSR Sprint C — 实现级设计（严格表示能力与冻结）
 
-状态：`CORRECTED / PENDING REVIEW`
+状态：`DESIGN-FROZEN`（2026-09-04 审查修订已复核）
 日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.5、§6.6、§9 Sprint C、§11 硬门 G3、§12）
 
@@ -17,7 +17,7 @@ PoE chart + 显式 principal-log residual objective（兼容类名 `SE3Metric`�
 screw-vs-box 示意图；(d) 冻结记录。Sprint C 是「证明 + 佐证 + 归档」Sprint，不是代码 Sprint。
 
 2026-09-04 审查发现 P1 legacy 角域归一化、投影结果不可变性与若干 G2 合同需纠正；这些属于冻结前
-纠错，不是扩展 Sprint C 研究范围。状态在独立复核前保持 `PENDING REVIEW`。
+纠错，不是扩展 Sprint C 研究范围。独立复核已完成，修订后的几何合同重新冻结。
 
 ## 1. 范围与不变量
 

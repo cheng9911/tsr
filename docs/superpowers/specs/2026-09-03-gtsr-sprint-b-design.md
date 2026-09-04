@@ -1,6 +1,6 @@
 # G-TSR Sprint B — 实现级设计（通用几何闭环）
 
-状态：`DESIGN-CORRECTED / PENDING REVIEW`
+状态：`DESIGN-FROZEN`（2026-09-04 审查修订已复核）
 日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.4~§3.7、§6.4、§6.5、§9 Sprint B、§11 硬门 G2）
 

@@ -3,15 +3,15 @@
 
 # G-TSR 几何内核冻结记录
 
-状态：`CORRECTED / PENDING REVIEW`
+状态：`FROZEN`（2026-09-04 审查修订已复核）
 日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§9~§12 硬门 G1/G2/G3）
 
 - 被审 revision：`45786b9`（含前置 G2 收口 `eae1ace`）
-- 修订 revision：`PENDING`（由最终提交者回填）
+- 修订 revision：`3c88724`（硬门审查修补实现基线）
 
-本文件归档 G-TSR 几何内核（Sprint A/B/C）的原冻结基线、2026-09-04 合同修订，以及待复核状态：
-API、约定、残差与容差、固定 seeds、环境版本和三道硬门结果。复核并重新冻结后，这些契约**不得**在不记录
+本文件归档 G-TSR 几何内核（Sprint A/B/C）的原冻结基线与 2026-09-04 合同修订：
+API、约定、残差与容差、固定 seeds、环境版本和三道硬门结果。重新冻结后，这些契约**不得**在不记录
 根因/量纲/对命题影响的前提下放宽（上游 §10）；旧 `TSR` 与 `tests/tsr/` 作为 differential oracle
 保持不动。
 
@@ -97,8 +97,8 @@ seed `441`（已知冷启动假阴性 canary，动态 `xfail`）。所有随机�
 | 硬门 | 内容 | 状态 | 证据 |
 |---|---|---|---|
 | G1 | canonical 精确嵌入（`GTSR.canonical` + E/C 差分） | ✅ 通过 | `tests/gtsr/test_canonical_embedding.py`、`test_canonical_compatibility.py`；E-01~E-10 + 5000 差分样本 |
-| G2 | 通用几何闭环（PoE + 显式残差目标 + 通用投影，冻结语料工程硬门） | ⏳ 修订待复核 | `test_poe_chart.py`（G-01~G-09）、`test_projection.py`（P-01~P-10）、`test_metrics.py`（M-01~M-10）；seed-441 canary 动态 `xfail` |
-| G3 | 严格表示能力（`𝔉_TSR ⊊ 𝔉_GTSR`） | ⏳ 修订待复核 | `docs/gtsr_expressivity_proofs.md`（P1/P2 + L1/L2/L3）；`test_expressivity.py`（X-01~X-03）；`fig7_screw_vs_tsr.png` |
+| G2 | 通用几何闭环（PoE + 显式残差目标 + 通用投影，冻结语料工程硬门） | ✅ 通过 | `test_poe_chart.py`（G-01~G-09）、`test_projection.py`（P-01~P-10）、`test_metrics.py`（M-01~M-10）；seed-441 canary 动态 `xfail` |
+| G3 | 严格表示能力（`𝔉_TSR ⊊ 𝔉_GTSR`） | ✅ 通过 | `docs/gtsr_expressivity_proofs.md`（P1/P2 + L1/L2/L3）；`test_expressivity.py`（X-01~X-03）；`fig7_screw_vs_tsr.png` |
 
 ## 7. 冻结交付物清单
 
@@ -118,4 +118,4 @@ seed `441`（已知冷启动假阴性 canary，动态 `xfail`）。所有随机�
 - `.venv/bin/ruff check` + `format --check`：仅对 G-TSR 本次改动范围检查干净；不据此声称 repo-wide format clean。
 - 改动文件不含 `src/tsr/tsr.py`（legacy 未动）。
 
-修订复核通过后方可重新标记 G3 并冻结几何内核；在此之前不启动 `P_r(s)` / phase estimator / transfer。
+修订复核已通过，几何内核重新冻结；现在可以按上游方案启动 `P_r(s)` / phase estimator / transfer 的 scope 锁定。

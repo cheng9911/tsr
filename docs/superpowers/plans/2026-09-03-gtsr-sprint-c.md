@@ -1,6 +1,6 @@
 # G-TSR Sprint C — 实施计划（严格表示能力与冻结）
 
-状态：`DELIVERED / CORRECTED / PENDING REVIEW`（2026-09-04 修订审查）
+状态：`DELIVERED / FROZEN`（2026-09-04 修订审查已复核）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task.
@@ -94,7 +94,7 @@
 - [x] 修正 `𝔉_TSR` 合法域/`κ(Bw)`、P2 active sub-box 与奇异面穷尽性。
 - [x] 将 `SE3Metric` 收紧为兼容命名的 principal-log residual objective，并增加非三角不等式 canary。
 - [x] 强化 seed-441、P-08、多起点/order/不可变结果等边界回归。
-- [ ] 独立复核修订证明与全量回归后，将 proof/freeze 状态恢复为 `FROZEN` 并回填修订 SHA。
+- [x] 独立复核修订证明与全量回归；proof/freeze 状态已恢复为 `FROZEN`，修订 SHA 已回填。
 
 ## 完成判定
 
