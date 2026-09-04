@@ -4,6 +4,9 @@
 import numpy as np
 from numpy import pi
 
+from tsr.gtsr.charts import PoEChart
+from tsr.gtsr.domains import CoordinateDomain, LinearInterval
+from tsr.gtsr.metrics import SE3Metric, se3_exp
 from tsr.gtsr.region import GTSR
 from tsr.tsr import TSR
 
@@ -71,3 +74,25 @@ def make_pair(T0_w=None, Tw_e=None, Bw=None):
     old = TSR(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
     new = GTSR.canonical(T0_w=T0_w, Tw_e=Tw_e, Bw=Bw)
     return old, new
+
+
+def make_seed9917_region():
+    """Return the frozen high-dimensional PoE fixture and its continued RNG."""
+    rng = np.random.default_rng(9917)
+    axes = []
+    for _ in range(5):
+        w = rng.normal(size=3)
+        w /= np.linalg.norm(w)
+        v = rng.normal(size=3)
+        if abs(v @ w) < 0.1:
+            v += 0.3 * w
+        axes.append(np.hstack((v, w)))
+    v = rng.normal(size=3)
+    v /= np.linalg.norm(v)
+    axes.append(np.hstack((v, np.zeros(3))))
+    chart = PoEChart(axes, representation="space")
+    domain = CoordinateDomain([LinearInterval(-1.2, 1.2) for _ in range(6)])
+    T0_w = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
+    Tw_e = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
+    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
+    return region, SE3Metric(rotation_weight=0.7), rng

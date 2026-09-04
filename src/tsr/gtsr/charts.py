@@ -299,6 +299,10 @@ class PoEChart(GeneratorChart):
         m = axes.shape[0]
         if order is None:
             order = list(range(m))
+        else:
+            order = list(order)
+            if any(isinstance(i, (bool, np.bool_)) or not isinstance(i, (int, np.integer)) for i in order):
+                raise TypeError("order entries must be integer indices")
         order = [int(i) for i in order]
         if sorted(order) != list(range(m)):
             raise ValueError("order must be a permutation of 0..m-1")

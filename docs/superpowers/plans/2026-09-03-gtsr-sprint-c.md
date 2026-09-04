@@ -1,5 +1,7 @@
 # G-TSR Sprint C — 实施计划（严格表示能力与冻结）
 
+状态：`DELIVERED / CORRECTED / PENDING REVIEW`（2026-09-04 修订审查）
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
@@ -21,6 +23,9 @@
 - 新文件带 SPDX 头（MIT）。
 - 证明用 Markdown + LaTeX 数学，与上游/设计文档一致。
 
+上述“不动 Sprint A/B 代码”是原执行约束；2026-09-04 冻结审查确认的合同缺口允许最小纠错，范围与
+证据记录在本文末尾“修订审查”，不视为新增研究功能。
+
 ---
 
 ### Task 1: P1 构造性嵌入证明
@@ -33,9 +38,9 @@
   （Sprint A 已交付）；旧 `src/tsr/tsr.py::TSR` 语义（§2 baseline）。
 - Produces: P1 断言 `𝔉_TSR ⊆ 𝔉_GTSR` 的构造性证明。
 
-- [ ] 写出 notation/定义节：`𝔉_GTSR`、`𝔉_TSR`、螺距 `h(ξ)`、见证曲线 `S_h`（按 spec §2 逐字）。
-- [ ] 写出 P1：构造映射 `E(T0,Te,Bw)=(T0,Te,C_TSR,Z(Bw))`；断言 `R(E)=R(TSR)` 集合相等，双向包含。
-- [ ] 说明 `GTSR.canonical`/`CanonicalTSRChart.forward` 是 `E`/`Φ_TSR` 的代码对应，逐项对应数学符号；
+- [x] 写出 notation/定义节：`𝔉_GTSR`、`𝔉_TSR`、螺距 `h(ξ)`、见证曲线 `S_h`（按 spec §2 逐字）。
+- [x] 写出 P1：构造映射 `E(T0,Te,Bw)=(T0,Te,C_TSR,Z(κ(Bw)))`；断言 `R(E)=R(TSR)` 集合相等，双向包含。
+- [x] 说明 `GTSR.canonical`/`CanonicalTSRChart.forward` 是 `E`/`Φ_TSR` 的代码对应，逐项对应数学符号；
       E-01~E-10 + 5000 差分样本为数值佐证（Sprint A 已交付）。
 
 ### Task 2: P2 严格包含证明
@@ -47,14 +52,14 @@
 - Consumes: Task 1 的 notation；`PoEChart`（Sprint B）。
 - Produces: P2 断言 `𝔉_TSR ⊊ 𝔉_GTSR` 的严格证明（L1/L2/L3 + 奇异面 + 结论）。
 
-- [ ] 引理 L1（螺距共轭不变）：`h(Ad_T ξ)=h(ξ)`，用 `Ad_T:[v,ω]→[Rv+p×Rω, Rω]`、
+- [x] 引理 L1（螺距共轭不变）：`h(Ad_T ξ)=h(ξ)`，用 `Ad_T:[v,ω]→[Rv+p×Rω, Rω]`、
       `(Rω)ᵀ(p×Rω)=0`、`(Rω)ᵀ(Rv)=ωᵀv`。
-- [ ] 引理 L2（单坐标切向螺距 ∈ {0,∞}）：单自由坐标 → 切 screw 是纯平移/纯旋转经固定 `T0,Te` 共轭。
-- [ ] 引理 L3（维数/秩）：`Φ_TSR` 在 pitch≠±π/2 处 rank 6，在 pitch=±π/2 处 rank 5（roll/yaw 退化）；
+- [x] 引理 L2（单坐标切向螺距 ∈ {0,∞}）：单自由坐标 → 切 screw 是纯平移/纯旋转经固定 `T0,Te` 共轭。
+- [x] 引理 L3（维数/秩）：`Φ_TSR` 在 `cos(pitch)≠0` 处 rank 6，在 `cos(pitch)=0` 处 rank 5（roll/yaw 退化）；
       像维数 = 自由坐标数 − 奇异性亏缺。
-- [ ] 情形分析：d=1 → 切向螺距 ∈{0,∞}（悖 `h≠0`）；d≥2 → 正则点 ≥2 维，或纯 roll+yaw 奇异面 1 维
+- [x] 情形分析：d=1 → 切向螺距 ∈{0,∞}（悖 `h≠0`）；d≥2 → 正则点 ≥2 维，或纯 roll+yaw 奇异面 1 维
       但零螺距（均悖 `S_h`）。
-- [ ] 结论：`S_h∈𝔉_GTSR`（`PoEChart([ξ_h])`+1D 线性 domain）且 `S_h∉𝔉_TSR` → 严格包含。
+- [x] 结论：`S_h∈𝔉_GTSR`（`PoEChart([ξ_h])`+1D 线性 domain）且 `S_h∉𝔉_TSR` → 严格包含。
 
 ### Task 3: screw 数值验证测试
 
@@ -64,12 +69,12 @@
 **Interfaces:**
 - Consumes: `PoEChart`、`GTSR.canonical`、`SE3Metric`、`se3_log`、`se3_exp`（Sprint A/B）。
 
-- [ ] X-01 非零有限螺距构造：`ξ_h=[0,0,h,0,0,1]`（轴 z，`h=0.05`），`PoEChart([ξ_h])` 表示 `S_h`；
+- [x] X-01 非零有限螺距构造：`ξ_h=[0,0,h,0,0,1]`（轴 z，`h=0.05`），`PoEChart([ξ_h])` 表示 `S_h`；
       `q+2π` 相对 `q` 的轴向位移为 `2πh`（≤1e-8 m）。
-- [ ] X-02 pitch 估计：相邻 `se3_log(T(q_i)⁻¹T(q_{i+1}))` → `ĥ`；`|ĥ−h|≤1e-8 m/rad`。
-- [ ] X-03 box 多余自由体积（佐证）：z-yaw box 采样云存在到 screw 曲线的正横向偏离（box 严格 > 1 维）。
+- [x] X-02 pitch 估计：相邻 `se3_log(T(q_i)⁻¹T(q_{i+1}))` → `ĥ`；`|ĥ−h|≤1e-8 m/rad`。
+- [x] X-03 box 多余自由体积（佐证）：z-yaw box 采样云存在到 screw 曲线的正横向偏离（box 严格 > 1 维）。
       显式注释「佐证，非证明」。
-- [ ] `pytest tests/gtsr/test_expressivity.py -q` 全绿；全量回归无回退。
+- [x] `pytest tests/gtsr/test_expressivity.py -q` 全绿；全量回归无回退（原交付基线）。
 
 ### Task 4: 示意图 + 冻结记录
 
@@ -78,11 +83,18 @@
 - Create: `docs/figures/fig7_screw_vs_tsr.png`
 - Create: `docs/gtsr_freeze_record.md`
 
-- [ ] `fig7_screw_vs_tsr()`：3D 并置 screw 曲线（轴 z，`h=0.05`，`q∈[-0.5,0.5]`）与 z-yaw box 采样云；
+- [x] `fig7_screw_vs_tsr()`：3D 并置 screw 曲线（轴 z，`h=0.05`，`q∈[-0.5,0.5]`）与 z-yaw box 采样云；
       标注 pitch 与横向偏离；输出 PNG。
-- [ ] 安装 matplotlib（`viz` extra）并生成 `fig7_screw_vs_tsr.png`，提交。
-- [ ] `docs/gtsr_freeze_record.md`：最终 API/度量/容差表 + 固定 seeds + 环境版本 + G1/G2/G3 结果表。
-- [ ] 全量 `pytest -q` + `.venv/bin/ruff check/format` 全绿；`git diff --check` 干净；提交。
+- [x] 安装 matplotlib（`viz` extra）并生成 `fig7_screw_vs_tsr.png`，提交。
+- [x] `docs/gtsr_freeze_record.md`：最终 API/度量/容差表 + 固定 seeds + 环境版本 + G1/G2/G3 结果表。
+- [x] 全量 `pytest -q` + `.venv/bin/ruff check/format` 全绿；`git diff --check` 干净；提交（原交付基线）。
+
+### 2026-09-04 修订审查
+
+- [x] 修正 `𝔉_TSR` 合法域/`κ(Bw)`、P2 active sub-box 与奇异面穷尽性。
+- [x] 将 `SE3Metric` 收紧为兼容命名的 principal-log residual objective，并增加非三角不等式 canary。
+- [x] 强化 seed-441、P-08、多起点/order/不可变结果等边界回归。
+- [ ] 独立复核修订证明与全量回归后，将 proof/freeze 状态恢复为 `FROZEN` 并回填修订 SHA。
 
 ## 完成判定
 

@@ -4,6 +4,7 @@
 import numpy as np
 import pytest
 
+from tests.gtsr.helpers import make_seed9917_region
 from tsr.gtsr.charts import PoEChart
 from tsr.gtsr.domains import CoordinateDomain, LinearInterval
 from tsr.gtsr.metrics import SE3Metric, se3_adjoint, se3_exp, se3_vee, so3_log
@@ -89,6 +90,27 @@ def test_G05_product_order_two_noncommuting_generators():
     assert not np.allclose(T[:3, :3], T2[:3, :3])
 
 
+@pytest.mark.parametrize("order", [[0.0, 1.0], [False, 1], ["0", 1]])
+def test_G05_order_rejects_non_integer_indices_instead_of_coercing(order):
+    axes = [[0, 0, 0, 0, 0, 1], [0, 0, 0, 1, 0, 0]]
+    with pytest.raises(TypeError, match="integer indices"):
+        PoEChart(axes, representation="space", order=order)
+
+
+def test_G05_order_accepts_numpy_integer_indices():
+    axes = [[0, 0, 0, 0, 0, 1], [0, 0, 0, 1, 0, 0]]
+    chart = PoEChart(axes, representation="space", order=np.array([1, 0], dtype=np.int64))
+    assert chart.dim == 2
+
+
+def test_G05_explicit_order_changes_the_product_order():
+    axes = [[0, 0, 0, 0, 0, 1], [0, 0, 0, 1, 0, 0]]
+    z = [0.4, 0.6]
+    chart = PoEChart(axes, representation="space", order=[1, 0])
+    expected = se3_exp(np.asarray(axes[1]) * z[1]) @ se3_exp(np.asarray(axes[0]) * z[0])
+    np.testing.assert_allclose(chart.forward(z), expected, atol=1e-15)
+
+
 def test_G06_space_body_adjoint_consistency():
     M = se3_exp([0.1, -0.2, 0.3, 0.3, -0.4, 0.5])
     B = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
@@ -137,6 +159,17 @@ def test_poe_rotational_axes_require_unit_angular_part():
     assert e_R <= 1e-12
     assert e_t <= 1e-12 * max(1.0, float(np.linalg.norm(v)))
 
+    # A zero-pitch rotation about a distant axis makes the scale term active.
+    large_v = np.array([1000.0, 0.0, 0.0])
+    large_lever_arm = PoEChart([np.hstack((large_v, [0.0, 0.0, 1.0]))], representation="space")
+    T_ref = large_lever_arm.forward([0.3])
+    T_wrap = large_lever_arm.forward([0.3 + 2 * np.pi])
+    e_R = float(np.linalg.norm(so3_log(T_wrap[:3, :3].T @ T_ref[:3, :3])))
+    e_t = float(np.linalg.norm(T_wrap[:3, 3] - T_ref[:3, 3]))
+    assert np.linalg.norm(large_v) > 1.0
+    assert e_R <= 1e-12
+    assert e_t <= 1e-12 * max(1.0, float(np.linalg.norm(large_v)))
+
 
 def test_generalized_sample_to_contains_and_partial_coordinates():
     chart = PoEChart(
@@ -161,24 +194,7 @@ def test_generalized_sample_to_contains_and_partial_coordinates():
 
 
 def test_high_dimensional_poe_sample_to_contains():
-    rng = np.random.default_rng(9917)
-    axes = []
-    for _ in range(5):
-        w = rng.normal(size=3)
-        w /= np.linalg.norm(w)
-        v = rng.normal(size=3)
-        if abs(v @ w) < 0.1:
-            v += 0.3 * w
-        axes.append(np.hstack((v, w)))
-    v = rng.normal(size=3)
-    v /= np.linalg.norm(v)
-    axes.append(np.hstack((v, np.zeros(3))))
-    chart = PoEChart(axes, representation="space")
-    domain = CoordinateDomain([LinearInterval(-1.2, 1.2) for _ in range(6)])
-    T0_w = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
-    Tw_e = se3_exp(np.hstack((rng.normal(size=3) * 0.3, rng.normal(size=3) * 0.3)))
-    region = GTSR(T0_w=T0_w, Tw_e=Tw_e, chart=chart, domain=domain)
-    metric = SE3Metric(rotation_weight=0.7)
+    region, metric, rng = make_seed9917_region()
 
     for _ in range(10):
         sampled = region.sample(rng=rng)

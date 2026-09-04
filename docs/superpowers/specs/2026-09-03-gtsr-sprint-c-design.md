@@ -1,7 +1,7 @@
 # G-TSR Sprint C — 实现级设计（严格表示能力与冻结）
 
-状态：`DESIGN-FREEZE`
-日期：`2026-09-03`
+状态：`CORRECTED / PENDING REVIEW`
+日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.5、§6.6、§9 Sprint C、§11 硬门 G3、§12）
 
 本文档把上游方案里 Sprint C 的数学契约落到交付物级。范围严格限定在 **Sprint C**：
@@ -11,9 +11,13 @@ P1/P2 严格证明 + screw 数值佐证 + 冻结。不实现 `P_r(s)`、phase es
 ## 0. 与 Sprint A/B 的关系
 
 Sprint A（G1）已交付 canonical 嵌入 `GTSR.canonical` 与 E/C 系列差分验证；Sprint B（G2）已交付
-PoE chart + 显式 metric + 通用投影，并把 G2 收口为「冻结语料上的工程硬门」。Sprint C **不新增几何
+PoE chart + 显式 principal-log residual objective（兼容类名 `SE3Metric`）+ 通用投影，并把 G2 收口为
+「冻结语料上的工程硬门」。Sprint C **不新增几何
 原语、不改动任何已冻结 API**；只新增：(a) 一份证明文档；(b) 一个数值验证测试文件；(c) 一张
 screw-vs-box 示意图；(d) 冻结记录。Sprint C 是「证明 + 佐证 + 归档」Sprint，不是代码 Sprint。
+
+2026-09-04 审查发现 P1 legacy 角域归一化、投影结果不可变性与若干 G2 合同需纠正；这些属于冻结前
+纠错，不是扩展 Sprint C 研究范围。状态在独立复核前保持 `PENDING REVIEW`。
 
 ## 1. 范围与不变量
 
@@ -38,8 +42,10 @@ screw-vs-box 示意图；(d) 冻结记录。Sprint C 是「证明 + 佐证 + 归
 - 表示族 `𝔉_GTSR`：所有可由 `(T0, Te, C, Z)` 生成的位姿子集
   `R(G) = { T0 Φ_C(z) Te | z ∈ Z }`，其中 `C` 是任意 generator chart（PoE，任意 screw 生成元），
   `Z` 是有界坐标域。
-- 表示族 `𝔉_TSR`：所有传统 TSR 的位姿子集，
-  `Φ_TSR(z) = Trans(x,y,z) Rz(yaw) Ry(pitch) Rx(roll)`，`z` 遍历 box bounds `Bw`。
+- 表示族 `𝔉_TSR`：所有语义合法的传统**单 TSR 区域**（不含 chain/union）的位姿子集。
+  `Φ_TSR(z) = Trans(x,y,z) Rz(yaw) Ry(pitch) Rx(roll)`，`z` 遍历 legacy 规范域 `κ(Bw)`：raw 角
+  span 必须不小于 `-2π`，负 span 加一次 `2π`、正 span 超过 `2π` clamp 为整圆；`Δ<-2π` 的
+  EPSILON-dependent legacy 分支不属于数学表示族；外 frames 为有限合法 `SE(3)`。
 - 螺距：对 `ξ = [v, ω]`、`ω ≠ 0`，`h(ξ) = ωᵀv / ‖ω‖²`；`ω = 0`（纯平移）记 `h = ∞`；纯旋转 `h = 0`。
 - 见证曲线（witness）：`S_h = { Exp(ξ_h q) | q ∈ [a,b] }`，`ξ_h = [v, ω]`，`ω ≠ 0`，
   `h = ωᵀv/‖ω‖² ≠ 0`，`a < b`。
@@ -54,25 +60,26 @@ Markdown + LaTeX 数学（`\[...\]`，与上游/设计文档一致），分两�
 
 **P1（构造性嵌入，`𝔉_TSR ⊆ 𝔉_GTSR`）：**
 
-- 定义构造映射 `E(T0, Te, Bw) = (T0, Te, C_TSR, Z(Bw))`，其中 `C_TSR` 即 canonical chart、
-  `Z(Bw)` 是与 `Bw` 同 bounds 的坐标域。
+- 定义构造映射 `E(T0, Te, Bw) = (T0, Te, C_TSR, Z(κ(Bw)))`，其中 `C_TSR` 即 canonical chart、
+  `Z(κ(Bw))` 是与合法 legacy 连续域相同的坐标域。
 - 断言 `R(E(T0,Te,Bw)) = R(TSR(T0,Te,Bw))` 为集合相等，双向包含：
-  - `⊇`：任一传统 TSR 位姿由某 `z ∈ Bw` 生成，其局部 `Φ_TSR(z)` 正是 canonical chart 前向，故属于 `R(E)`；
-  - `⊆`：任一 `R(E)` 位姿形如 `T0 Φ_TSR(z) Te`、`z ∈ Z(Bw)`，即传统 TSR 位姿。
+  - `⊇`：任一传统 TSR 位姿由某 `z ∈ κ(Bw)` 生成，其局部 `Φ_TSR(z)` 正是 canonical chart 前向，故属于 `R(E)`；
+  - `⊆`：任一 `R(E)` 位姿形如 `T0 Φ_TSR(z) Te`、`z ∈ Z(κ(Bw))`，即传统 TSR 位姿。
 - 说明 `GTSR.canonical` 与 `CanonicalTSRChart.forward` 是 `E` 与 `Φ_TSR` 的代码对应
   （逐项对应数学符号）；数值佐证为 E-01~E-10 + 5000 差分样本（Sprint A 已交付）。
 
 **P2（严格包含，`𝔉_TSR ⊊ 𝔉_GTSR`）：**
 
-- **引理 L1（螺距共轭不变）**：对任意 `T ∈ SE(3)`、`ξ ∈ se(3)`，`h(Ad_T ξ) = h(ξ)`。证明用
+- **引理 L1（螺距共轭不变）**：对任意 `T ∈ SE(3)`、`ξ ∈ se(3)`，`h(Ad_T ξ) = h(ξ)`。单列
+  `ω=0` 时纯平移保持纯平移；`ω≠0` 时证明用
   `Ad_T : [v, ω] ↦ [p×Rω + Rv, Rω]`，其中 `(Rω)ᵀ(p×Rω) = 0`（叉积垂直于自身）且
   `(Rω)ᵀ(Rv) = ωᵀv`（`R` 正交）。
-- **引理 L2（单坐标切向螺距 ∈ {0, ∞}）**：传统 TSR 中仅一个坐标自由（其余零宽）时，其 1 参数族的
-  切 screw 是「纯平移或纯旋转」经固定 `T0, Te` 共轭，故螺距 ∈ {0, ∞}（由 L1）。
-- **引理 L3（维数）**：若传统 TSR 的像恰为 1 维嵌入子流形，则在正则点的切空间由单个非退化坐标的
-  微分张成 → 螺距 ∈ {0, ∞}；≥2 个非退化坐标在正则点给 ≥2 维局部像，不能等于 1 维曲线。
-- **奇异面情形（Euler，pitch = ±π/2）**：roll/yaw 退化合并为单一纯旋转（仍零螺距）；再加任一独立
-  平移则局部像 ≥2 维。故奇异参数化也不能产生非零有限螺距的一维曲线。
+- **引理 L2（单坐标切向螺距 ∈ {0, ∞}）**：用 body/spatial trivialized tangent 描述 screw；传统
+  TSR 中仅一个坐标自由时，该方向是纯平移或纯旋转经 `Ad` 变换，故螺距 ∈ {0, ∞}（由 L1）。
+- **引理 L3（维数）**：在 active sub-box 相对内部考察 restricted Jacobian；`cos(pitch)≠0` 时 active
+  列独立，≥2 个非退化坐标给 ≥2 维局部像，不能等于 1 维曲线。
+- **奇异面情形（Euler，`cos(pitch)=0`）**：pitch 必须零宽；分别排除至少两个平移、平移+旋转；仅
+  roll/yaw 自由时退化成单一纯旋转（零螺距）。故奇异参数化也不能产生非零有限螺距的一维曲线。
 - **结论**：`S_h`（`h ≠ 0` 有限）∈ `𝔉_GTSR`（`PoEChart([ξ_h])` + 1D 线性 domain），但其每点切 screw
   螺距为 `h ∉ {0, ∞}`，故 ∉ `𝔉_TSR`；得严格包含 `𝔉_TSR ⊊ 𝔉_GTSR`。
 
@@ -94,7 +101,7 @@ pitch 与横向偏离。matplotlib（`viz` extra），输出 `docs/figures/fig7_
 
 ### 3.4 `docs/gtsr_freeze_record.md` — 冻结记录
 
-最终 API/度量/容差表 + 固定 seeds + 环境版本（numpy/scipy/python）+ G1/G2/G3 结果表。
+最终 API/残差目标/容差表 + 固定 seeds + 环境版本（numpy/scipy/python）+ G1/G2/G3 结果表。
 
 ## 4. 数据流（无新模块）
 

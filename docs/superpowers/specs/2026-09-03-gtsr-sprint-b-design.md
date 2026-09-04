@@ -1,11 +1,11 @@
 # G-TSR Sprint B — 实现级设计（通用几何闭环）
 
-状态：`DESIGN-FREEZE`
-日期：`2026-09-03`
+状态：`DESIGN-CORRECTED / PENDING REVIEW`
+日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.4~§3.7、§6.4、§6.5、§9 Sprint B、§11 硬门 G2）
 
 本文档把上游验证方案里 Sprint B 的数学契约落到代码级 API。范围严格限定在 **Sprint B**：
-PoE chart + 显式 metric + 通用 `project`。不实现 `P_r(s)`、phase estimator、transfer（硬门 G2 通过前
+PoE chart + 显式 principal-log residual objective + 通用 `project`。不实现 `P_r(s)`、phase estimator、transfer（硬门 G2 通过前
 禁止启动，见 §6）。
 
 ## 0. 对上游文档的一处修正（G-09 归属）
@@ -31,9 +31,12 @@ Sprint B 第 3 步）。本设计文档与后续计划均按 G-01~G-09 执行；
   Jacobian 用中心有限差分 `1e-6`，legacy `EPSILON=1e-3` 只留在旧 `contains/distance`。
 - 随机测试一律显式 `numpy.random.Generator`，固定 seeds `[0, 1, 7, 42, 20260902]`。
 - 多维非凸投影是**多起点局部优化**，不宣称总能找到全局最优；失败必须显式暴露（`success=False`），
-  不得伪装。设 `ẑ ∈ Z`、`d̂ = d(T(ẑ), T_q)`、`d* = inf_{z∈Z} d(T(z), T_q)`；因 `ẑ` 可行有
-  `d* ≤ d̂`，故 `d̂ ≤ tol ⟹ d* ≤ tol`，但反方向不成立。据此：
-  - `contains=True` 是对容差膨胀集合 `R_tol = {T | dist(T, R) ≤ tol}` 的声音证书（无假阳性），
+  不得伪装。这里 `SE3Metric` 是兼容类名；实际目标 `δ_W(A,B)=‖Log(A⁻¹B)^vee‖_W` 是非负
+  principal-log residual，一般不满足三角不等式，并非严格数学 metric。设 `ẑ ∈ Z`、
+  `δ̂ = δ_W(T(ẑ), T_q)`、`δ* = inf_{z∈Z} δ_W(T(z), T_q)`；因 `ẑ` 可行有
+  `δ* ≤ δ̂`，故 `δ̂ ≤ tol ⟹ δ* ≤ tol`，但反方向不成立。此单向健全性只用非负可行 witness，
+  不依赖三角不等式。据此：
+  - `contains=True` 是对残差膨胀集合 `R_tol = {T | inf_{X∈R} δ_W(X,T) ≤ tol}` 的声音证书（无假阳性），
     不代表严格属于原集合 `R`；
   - `contains=False` 解释为「未找到区域内证据」（局部优化可能落入错误局部极小，存在假阴性），
     不得写成「不可达」；
@@ -55,14 +58,14 @@ Sprint B 第 3 步）。本设计文档与后续计划均按 G-01~G-09 执行；
 | PoE BODY | `Φ(z) = M Exp(B₁z₁) ⋯ Exp(Bₘzₘ)`（screw 轴在 body/home frame）|
 | 生成元顺序 | `order` 为显式索引排列（默认 `0..m-1`），不依赖容器偶然顺序 |
 | home 变换 | chart 内部固定 `M`（Sprint B 限制 `M=I`，接口保留）|
-| 度量误差 | `r(z,T) = Log(T(z)⁻¹ T)^vee = [ρ, θ]`（body/左不变 frame）|
-| 度量矩阵 | `W = diag(1,1,1, w²,w²,w²)`，`d_W² = ‖ρ‖² + w²‖θ‖²`；`w` 为 `rotation_weight`（m/rad，默认 1.0）|
+| 残差 | `r(z,T) = Log(T(z)⁻¹ T)^vee = [ρ, θ]`（body/左不变 frame）|
+| 残差权重 | `W = diag(1,1,1, w²,w²,w²)`，`δ_W² = ‖ρ‖² + w²‖θ‖²`；`w` 为 `rotation_weight`（m/rad，默认 1.0）；`δ_W` 一般不满足三角不等式 |
 | Jacobian | `J(z) ∈ ℝ^{6×m}`，第 `i` 列 = `(T(z)⁻¹ ∂T(z)/∂z_i)^vee`（body frame）|
-| 投影问题 | `z* = argmin_{z∈Z} d_W(T(z), T_q)²` |
+| 投影问题 | `z* = argmin_{z∈Z} δ_W(T(z), T_q)²` |
 
 ## 3. 模块设计
 
-### 3.1 metrics.py — 显式 SE(3) metric
+### 3.1 metrics.py — 显式 SE(3) principal-log residual objective
 
 ```python
 # Lie 群纯函数（se(3)，[v,ω] 排列）
@@ -75,7 +78,7 @@ se3_left_jacobian_inverse(xi) -> J_l⁻¹       # 6×6（左 Jacobian 逆，精�
 class SE3Metric:
     def __init__(self, rotation_weight=1.0): ...   # w（m/rad），严格正且有限
     def error(self, T_from, T_to) -> np.ndarray    # Log(T_from⁻¹ T_to)^vee -> [ρ, θ] (6,)
-    def distance(self, T_from, T_to) -> float      # sqrt(‖ρ‖² + w²‖θ‖²)
+    def distance(self, T_from, T_to) -> float      # δ_W=sqrt(‖ρ‖²+w²‖θ‖²)；兼容方法名
     def distance_sq(self, r) -> float              # rᵀ W r
     def error_body_jacobian(self, T_from, T_to) -> E  # E = ∂r/∂(body 扰动 T_from) ∈ ℝ^{6×6}
 ```
@@ -125,10 +128,10 @@ pitch 的零判定同样使用 `64ε_machine`。非零且不满足单位契约�
 ```python
 @dataclass(frozen=True)
 class ProjectionResult:
-    z: np.ndarray            # 最优坐标（失败时仍返回最佳努力值）
-    transform: np.ndarray    # T0_w @ forward(z) @ Tw_e
-    distance: float          # d_W(T(z), T_q)
-    success: bool            # 是否返回满足 bounds + 数值 KKT 的局部候选（非全局 membership 证书）
+    z: np.ndarray            # defensive-copy + read-only；失败时仍返回最佳努力值
+    transform: np.ndarray    # defensive-copy + read-only；T0_w @ forward(z) @ Tw_e
+    distance: float          # δ_W(T(z), T_q)；兼容字段名
+    success: bool            # 是否返回满足 bounds + 数值 KKT 的 stationary candidate（非最小值/全局证书）
     optimality: float | None # KKT/梯度残差（success=True 时 <= 1e-6；失败可为 None）
     message: str             # 诊断信息（success=False 时说明原因）
 
@@ -147,7 +150,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6) -> 
    （`optimality`）；
 5. `success = 收敛 且 bounds 可行 ≤ 1e-12 且 optimality ≤ 1e-6 且 无 NaN`；
    任一失败即 `success=False`，`message` 写明失败维度，`z/transform/distance` 仍返回最佳努力值。
-   `success=True` 时 `message` 固定为 `"local optimum; global optimality not certified"`。
+   `success=True` 时 `message` 固定为 `"stationary/KKT candidate; global optimality not certified"`。
 
 一维投影（P-04/P-05）走独立的高精度标量参考（`scipy.optimize.minimize_scalar` 或密集网格 + 黄金分割），
 **不用被测的多维优化器自身作为 oracle**（§6.5）。
@@ -170,7 +173,8 @@ class GTSR:
 
 `contains(T, metric=None, tol=1e-8)`：`metric is None` 走 legacy 路径（canonical 专属，
 `EPSILON=1e-3`）；`metric` 给定走通用路径（`project(T, metric).distance <= tol`，任意 chart）。
-通用路径的 `contains=True` 是对容差膨胀集合 `R_tol = {T | dist(T, R) ≤ tol}` 的声音证书（无假阳性，
+通用路径的 `contains=True` 是对残差膨胀集合
+`R_tol = {T | inf_{X∈R} δ_W(X,T) ≤ tol}` 的声音证书（无假阳性，
 不代表严格属于原集合 `R`）；`contains=False` 表示「未找到区域内证据」（局部优化可能落入错误局部
 极小，存在假阴性，不得读作「不可达」）。已知 on-region 查询的投影残差在 canonical inverse start 与
 bounded least-squares 精化下不超过默认容差；距离边界大于 `tol` 的 pose 仍判为区域外。
@@ -191,7 +195,7 @@ keyword-only `partial=...`。两者同时传入时明确抛 `TypeError`。对 ge
 z ──forward──> T_local ──> T0_w @ . @ Tw_e ──> T(z)          # to_transform
 z ──jacobian──> J(z)（body frame）                            # 解析，G-09 对有限差分
 T_q ──project──> multi-start L-BFGS-B ──> bounded LS refine ──> ProjectionResult
-T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> d_W         # 度量，P 系列
+T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> δ_W         # 残差目标，P 系列
 ```
 
 ## 5. 测试矩阵（对应文档 §6.4 / §6.5）
@@ -205,7 +209,7 @@ T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> d_W         # �
   - 高维随机 PoE 与非单位 outer frames 的 `sample→project/contains`，以及 reviewer 4D 对抗复现。
 - `test_projection.py`：P-01~P-09。
   - P-01 内部坐标查询（`distance ≤ 1e-10`）；P-02 零宽 domain；P-03 canonical 对 legacy/解析裁剪
-    （各自度量）；P-04 1D 平移/纯旋转对解析投影；P-05 1D 非零螺距 screw 对高精度标量参考；
+    （各自残差/距离定义）；P-04 1D 平移/纯旋转对解析投影；P-05 1D 非零螺距 screw 对高精度标量参考；
     P-06 幂等 `project(project(T).transform)`；P-07 `contains(T)` ⟺ 投影残差 ≤ tol；
     P-08 多生成元非凸（固定多起点 + KKT 残差 + 目标值 ≥ 参考最优 −1e-8）；P-09 失败传播（`success=False`）。
 
@@ -213,7 +217,7 @@ T_q ──metric.error──> r = Log(T(z)⁻¹T_q)^vee ──> d_W         # �
 
 ## 6. 退出条件（硬门 G2：冻结语料上的工程硬门）
 
-G2 是**冻结语料上的工程硬门**：`project` 是多起点局部最优（非全局证书），`contains` 是近似
+G2 是**冻结语料上的工程硬门**：`project` 返回多起点优化所得 stationary/KKT candidate（非全局证书），`contains` 是近似
 membership（无假阳性、可能假阴性）。本硬门只在冻结 seeds 与公开验证语料上断言，不宣称任意非凸
 PoE 的严格全局 membership（那需要全局优化/认证求解，超出本 Sprint 范围）。
 

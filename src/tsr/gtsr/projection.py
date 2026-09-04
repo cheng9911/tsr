@@ -22,6 +22,14 @@ class ProjectionResult:
     optimality: float | None
     message: str
 
+    def __post_init__(self):
+        z = np.array(self.z, dtype=float, copy=True)
+        transform = np.array(self.transform, dtype=float, copy=True)
+        z.flags.writeable = False
+        transform.flags.writeable = False
+        object.__setattr__(self, "z", z)
+        object.__setattr__(self, "transform", transform)
+
 
 def _projected_gradient_norm(g, z, lower, upper, tol_bounds):
     pg = np.zeros_like(g)
@@ -140,7 +148,7 @@ def project(gtsr, T, metric, *, starts=None, tol_bounds=1e-12, tol_opt=1e-6, max
     optimal = bool(opt_norm <= tol_opt)
     success = bool(converged and feasible and optimal)
     if success:
-        message = "local optimum; global optimality not certified"
+        message = "stationary/KKT candidate; global optimality not certified"
     else:
         reasons = []
         if not converged:

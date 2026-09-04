@@ -1,10 +1,10 @@
 # G-TSR 几何内核设计与验证方案
 
-状态：`ACTIVE / GEOMETRY-FREEZE`
+状态：`CORRECTED / PENDING REVIEW`
 
 版本：`v0.1`
 
-日期：`2026-09-02`
+日期：`2026-09-04`
 
 ## 1. 目标与范围锁定
 
@@ -34,7 +34,7 @@
 | 旋转约定 | `Rz(yaw) Ry(pitch) Rx(roll)` |
 | 局部位姿 | `Trans(x,y,z) Rz(yaw) Ry(pitch) Rx(roll)` |
 | 外部变换 | `T0_w @ Tw @ Tw_e` |
-| 角度范围 | 支持普通区间、跨 `±π` 的 outer interval 和最长 `2π` 的区间 |
+| 角度范围 | 语义连续域支持普通区间、跨 `±π` 的 outer interval 和最长 `2π` 的区间；raw 正 span 超过 `2π` 按 legacy 语义视为整圆；raw 负 span 必须不小于 `-2π` |
 | `contains()` | 解析式坐标/欧拉角区间判断，容差来自 `utils.EPSILON=1e-3` |
 | `distance()` | 在 `[xyz,rpy]` 坐标中裁剪并求加权二范数 |
 | `distance_optimize()` | 用现有 `geodesic_distance()` 数值优化，度量与 `distance()` 不同 |
@@ -126,15 +126,17 @@ PoE chart 不接受含义模糊的自由字符串。其表达约定冻结为枚�
 必须同时保留两条互不混淆的距离路径：
 
 1. **legacy compatibility path**：canonical G-TSR 调用或严格复现现有 `TSR.distance()`，仅用于旧 API 回归；
-2. **generic geometry path**：定义
+2. **generic geometry path**：定义 principal-log 残差目标
 
    \[
    r(z,T)=\operatorname{Log}\!\left(T(z)^{-1}T\right)^\vee,
    \qquad
-   d_W(T(z),T)=\sqrt{r^\top W r},
+   \delta_W(T(z),T)=\sqrt{r^\top W r},
    \]
 
-   其中 `W` 必须显式给出、正定，并说明平移与旋转的单位权重。
+   其中 `W` 必须显式给出、正定，并说明平移与旋转的单位权重。兼容 API 类名仍为
+   `SE3Metric`、方法仍为 `distance`，但 `δ_W` 一般不满足三角不等式，**不是严格数学 metric**。
+   投影 membership 的单向健全性只依赖 `δ_W≥0` 和返回坐标可行，不依赖三角不等式。
 
 “集合嵌入成立”不推出这两种距离的数值相等。论文和测试都不得用旧 `distance()` 的结果证明新度量正确。
 
@@ -142,10 +144,10 @@ PoE chart 不接受含义模糊的自由字符串。其表达约定冻结为枚�
 
 | ID | 命题 | 主要证据 | 结论边界 |
 |---|---|---|---|
-| P1 | 任意传统 TSR 都可构造一个集合完全相同的 canonical G-TSR | 构造性证明 + differential tests | 只证明集合与指定兼容 API，不自动证明所有新 API 数值相同 |
+| P1 | 任意语义合法的传统单 TSR 都可构造一个集合完全相同的 canonical G-TSR | 构造性证明 + differential tests | 不含 chain/union；只证明集合与指定兼容 API，不自动证明所有新 API 数值相同 |
 | P2 | G-TSR 表示族严格大于传统 TSR 表示族 | 非零有限螺距的一维 screw 反例 + 局部维数/螺距不变量证明 | 数值图只是佐证，不能代替严格证明 |
 | P3 | PoE chart 能按声明的生成元、顺序和 frame 产生合法 `SE(3)` 位姿 | 解析特例 + 非交换次序测试 + 有限差分 | 不涉及学习或任务性能 |
-| P4 | 通用 `project/distance/contains` 在声明度量下内部一致 | 已知解、1D 全局参考、多起点与 KKT/最优性检查 | 多维非凸投影不宣称总能找到全局最优 |
+| P4 | 通用 `project/distance/contains` 在声明残差目标下内部一致 | 已知解、1D 全局参考、多起点与 KKT/最优性检查 | 多维非凸投影不宣称总能找到全局最优 |
 
 ## 5. 验证总体结构
 
@@ -156,7 +158,7 @@ PoE chart 不接受含义模糊的自由字符串。其表达约定冻结为枚�
 | L0 契约检查 | shape、单位、frame、action、顺序、周期元数据 | 定义仍有歧义 |
 | L1 确定性单元测试 | 手算特例、边界、奇异点、非法输入 | 基础实现错误 |
 | L2 差分/性质测试 | 旧 TSR oracle、固定随机种子、变换不变量 | 兼容性或组合语义错误 |
-| L3 优化验证 | 已知投影、1D 高精度参考、多起点、最优性 | 投影器或度量实现错误 |
+| L3 优化验证 | 已知投影、1D 高精度参考、多起点、最优性 | 投影器或残差目标实现错误 |
 | L4 命题验证 | 嵌入构造、严格包含证明、数值示例 | 论文核心几何主张不成立 |
 
 所有随机测试都必须：
@@ -188,8 +190,13 @@ PoE chart 不接受含义模糊的自由字符串。其表达约定冻结为枚�
 
 \[
 E(T_{0,w},T_{w,e},B_w)
-=(T_{0,w},T_{w,e},\mathcal C_{\mathrm{TSR}},\mathcal Z(B_w)).
+=(T_{0,w},T_{w,e},\mathcal C_{\mathrm{TSR}},\mathcal Z(\kappa(B_w))).
 \]
+
+这里 P1 的传统表示族只包含有限合法外 frames、有限 `6×2` bounds、非倒置平移域的**单个语义合法
+TSR 区域**（不含 chain/union）。`κ` 精确复现 legacy 连续角域：负 span 加一次 `2π`、正 span 超过
+`2π` clamp 为整圆，并要求所得宽度在 `[0,2π]`；旧构造器可创建但一次 wrap 后仍倒置的 raw 角域不属于
+该表示族。
 
 对同一个合法坐标 `z`，比较：
 
@@ -265,14 +272,14 @@ e_R=\operatorname{atan2}\!\left(
 通用投影问题为
 
 \[
-z^*=\arg\min_{z\in\mathcal Z} d_W(T(z),T_q)^2.
+z^*=\arg\min_{z\in\mathcal Z} \delta_W(T(z),T_q)^2.
 \]
 
 | ID | 测试 | 通过条件 |
 |---|---|---|
 | P-01 | 查询位姿由内部坐标生成 | `distance<=1e-10` 且重构位姿一致 |
 | P-02 | 零宽 domain | 投影恒为唯一固定位姿 |
-| P-03 | canonical chart | 与解析裁剪或 legacy 路径按各自度量分别对照 |
+| P-03 | canonical chart | 与解析裁剪或 legacy 路径按各自残差/距离定义分别对照 |
 | P-04 | 1D 平移/纯旋转 | 与解析投影一致 |
 | P-05 | 1D 非零螺距 screw | 与高精度有界标量优化参考一致 |
 | P-06 | 投影幂等性 | `project(project(T))` 的位姿变化 `<=1e-10` |
@@ -379,7 +386,7 @@ tests/gtsr/
 ### Sprint B：通用几何
 
 1. 实现 `PoEChart`；
-2. 实现显式 metric；
+2. 实现显式 principal-log residual objective（兼容类名 `SE3Metric`）；
 3. 实现通用 `project/distance/contains`；
 4. 完成 G-01 至 G-09、P-01 至 P-09。
 
@@ -401,7 +408,7 @@ tests/gtsr/
 | 前向映射不一致 | RPY 乘法顺序、数组索引、左右乘、frame 定义 |
 | 只有 `Tw_e` 非单位时失败 | 右侧工具偏置是否被错误地前乘或求逆 |
 | `±π` 附近失败 | 周期域与线性域混用、outer interval 展开 |
-| 集合测试通过但 distance 不同 | 是否错误地把 legacy 坐标距离和新 Log 度量视为同一量 |
+| 集合测试通过但 distance 不同 | 是否错误地把 legacy 坐标距离和新 Log 残差目标视为同一量 |
 | 欧拉角数组不同但位姿相同 | 多值表示，不应判失败 |
 | 投影偶发失败 | 初始化、Jacobian、局部极小和 bounds 活跃约束 |
 | screw 被错误 wrap | 仅看到旋转生成元，忽略了非零 pitch 的平移 |
@@ -450,7 +457,7 @@ tests/gtsr/
 - canonical differential test 结果表；
 - screw case 的曲线/box 对比图及生成脚本；
 - 失败样本回归清单和固定 seeds；
-- 几何内核冻结记录，列出最终 API、度量和容差。
+- 几何内核冻结记录，列出最终 API、残差目标和容差。
 
 ## 13. 当前立即执行项
 

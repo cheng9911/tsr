@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from scipy.optimize import minimize_scalar
 
+from tests.gtsr.helpers import make_seed9917_region
 from tsr.gtsr.charts import PoEChart
 from tsr.gtsr.domains import CoordinateDomain, LinearInterval
 from tsr.gtsr.metrics import SE3Metric, se3_exp
@@ -25,6 +26,7 @@ def test_P01_query_from_internal_coords():
     Tq = region.to_transform(z_true)
     res = region.project(Tq, metric)
     assert res.success
+    assert res.message == "stationary/KKT candidate; global optimality not certified"
     assert res.distance <= 1e-10
     np.testing.assert_allclose(res.z, z_true, atol=1e-6)
     np.testing.assert_allclose(res.transform, Tq, atol=1e-10)
@@ -259,6 +261,57 @@ def test_P08_multidim_nonconvex_multistart_kkT():
     assert res.distance <= grid_best + 1e-8
 
 
+def test_P08_multistart_uses_all_explicit_starts_independent_of_order():
+    region, metric, _ = make_seed9917_region()
+    z_query = np.array(
+        [
+            -0.7250909917227777,
+            0.05350105481634815,
+            -1.198540753054152,
+            -0.9528767480423488,
+            -0.7535481207602261,
+            -0.06669751948316671,
+        ]
+    )
+    bad = np.array(
+        [
+            0.6138846719834776,
+            -0.9745710813253965,
+            0.13177753171763507,
+            0.11505237825646919,
+            -0.064892209497172,
+            -0.589829910735165,
+        ]
+    )
+    good = np.array(
+        [
+            0.20823822437533823,
+            0.9505431043362946,
+            -0.6912116367248099,
+            0.4883825844389551,
+            0.38140176154321614,
+            -0.6622489371555484,
+        ]
+    )
+    query = region.to_transform(z_query)
+
+    bad_result = region.project(query, metric, starts=[bad])
+    forward = region.project(query, metric, starts=[bad, good])
+    reverse = region.project(query, metric, starts=[good, bad])
+    default = region.project(query, metric)
+
+    assert bad_result.success, bad_result.message
+    assert forward.success, forward.message
+    assert reverse.success, reverse.message
+    assert default.success, default.message
+    assert bad_result.distance > 1.0
+    assert forward.distance < 1e-10
+    assert reverse.distance < 1e-10
+    assert default.distance < 1e-10
+    assert bad_result.distance - forward.distance > 1.0
+    assert bad_result.distance - reverse.distance > 1.0
+
+
 def test_P09_failure_propagation_is_visible():
     axis = [0.0, 0.0, 0.3, 0.0, 0.0, 1.0]
     region = _region_1d(axis, -1.0, 1.0)
@@ -274,6 +327,23 @@ def test_P09_failure_propagation_is_visible():
     assert res.transform.shape == (4, 4)
 
 
+def test_projection_result_arrays_are_defensive_and_read_only():
+    from tsr.gtsr.projection import ProjectionResult
+
+    source_z = np.array([0.25])
+    source_transform = np.eye(4)
+    result = ProjectionResult(source_z, source_transform, 0.0, True, 0.0, "test")
+    source_z[0] = 0.5
+    source_transform[0, 3] = 1.0
+
+    np.testing.assert_array_equal(result.z, [0.25])
+    np.testing.assert_array_equal(result.transform, np.eye(4))
+    with pytest.raises(ValueError, match="read-only"):
+        result.z[0] = 0.75
+    with pytest.raises(ValueError, match="read-only"):
+        result.transform[0, 3] = 2.0
+
+
 def test_project_rejects_empty_explicit_starts():
     region = _region_1d([1.0, 0.0, 0.0, 0.0, 0.0, 0.0], -1.0, 1.0)
     with pytest.raises(ValueError, match="starts must contain at least one"):
@@ -287,7 +357,7 @@ def _seed441_region():
 
     seed 441: a genuinely on-region pose gets projected to a wrong local minimum by the
     multi-start local optimizer (distance ~0.128, success=True, contains=False). This is
-    the documented contract boundary — `project` is a local optimum, not a global
+    the documented contract boundary — `project` returns a stationary/KKT candidate, not a global
     certificate — and the warm-start path recovers the true zero-residual coordinate.
     """
     axes = np.array(
@@ -384,12 +454,27 @@ def test_P10_seed441_known_cold_start_false_negative_canary():
     result = region.project(query, metric)  # cold start: multi-start, no warm start
 
     if result.distance > 1e-8:
+        assert result.success, result.message
+        assert np.isfinite(result.distance)
+        assert np.all(np.isfinite(result.z))
+        assert np.all(np.isfinite(result.transform))
+        assert np.all(result.z >= region.domain.cont_lower - 1e-12)
+        assert np.all(result.z <= region.domain.cont_upper + 1e-12)
+        assert result.message == "stationary/KKT candidate; global optimality not certified"
+        assert result.distance == pytest.approx(0.12828521902191672, abs=1e-8)
+        assert result.z[-1] == pytest.approx(-1.2, abs=1e-12)
         pytest.xfail(
             "seed-441: cold-start projection falls into a local minimum "
             f"(distance={result.distance:.6g}); known false negative, warm-start recovers it"
         )
-    # if the local optimizer ever finds the true zero basin, the canary XPASSes:
+    # If the optimizer finds the true basin, this remains a normal passing
+    # regression test; the suite's xfail count changes and documents that the
+    # known false-negative boundary has been removed.
+    assert result.success, result.message
     assert result.distance <= 1e-8
+    assert np.all(result.z >= region.domain.cont_lower - 1e-12)
+    assert np.all(result.z <= region.domain.cont_upper + 1e-12)
+    np.testing.assert_allclose(result.transform, query, atol=1e-8)
     assert region.contains(query, metric=metric)
 
 

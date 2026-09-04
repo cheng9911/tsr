@@ -165,6 +165,39 @@ def test_E08_wrap_and_outer_and_full():
         assert_transforms_close(old.to_transform(np.array(z)), new.to_transform(np.array(z)))
 
 
+def test_E08_legacy_positive_angular_span_over_one_turn_clamps_to_full_circle():
+    Bw = np.zeros((6, 2))
+    Bw[5] = [0.2, 0.2 + 4 * pi]
+    old, new = make_pair(Bw=Bw)
+    np.testing.assert_allclose(new.domain.cont_upper[5] - new.domain.cont_lower[5], 2 * pi, atol=1e-15)
+    for yaw in [-pi, -0.4, 0.2, pi]:
+        z = np.array([0, 0, 0, 0, 0, yaw])
+        assert_transforms_close(old.to_transform(z), new.to_transform(z))
+
+
+def test_E08_negative_angular_span_beyond_one_turn_is_outside_canonical_contract():
+    Bw = np.zeros((6, 2))
+    Bw[5] = [2 * pi, -2 * pi - 0.1]
+    with pytest.raises(ValueError, match="at least -2\\*pi wide"):
+        GTSR.canonical(Bw=Bw)
+
+
+def test_E08_negative_full_turn_accepts_ulp_roundoff_at_large_lower_bound():
+    Bw = np.zeros((6, 2))
+    lower = 128.80518381
+    Bw[5] = [lower, lower - 2 * pi]
+    old, new = make_pair(Bw=Bw)
+    np.testing.assert_allclose(new.domain.cont_upper[5], new.domain.cont_lower[5], atol=1e-15)
+    for yaw in [new.domain.cont_lower[5], -pi, pi]:
+        z = np.array([0, 0, 0, 0, 0, yaw])
+        assert old.is_valid(z)[5]
+        assert new.is_valid(z)[5]
+        assert_transforms_close(old.to_transform(z), new.to_transform(z))
+    zero = np.zeros(6)
+    assert not old.is_valid(zero)[5]
+    assert not new.is_valid(zero)[5]
+
+
 def test_E09_pitch_singularity():
     Bw = np.zeros((6, 2))
     Bw[3:6] = [-pi, pi]

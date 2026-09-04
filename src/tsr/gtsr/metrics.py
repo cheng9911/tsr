@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 Siddhartha Srinivasa
 
-"""Explicit SE(3) metric and Lie-group primitives for the G-TSR kernel.
+"""Explicit SE(3) residual objective and Lie-group primitives for G-TSR.
 
 Twist ordering is ``xi = [v, w]`` (linear ``v`` first, angular ``w`` last).
+
+``SE3Metric`` is retained as the public compatibility name.  Its principal-log
+residual is a useful symmetric projection objective, but it does not in general
+satisfy the triangle inequality and is therefore not a metric in the strict
+mathematical sense.
 """
 
 import numpy as np
 
-from ._validation import finite_vector, rotation_matrix, se3_transform
+from ._validation import finite_matrix, finite_vector, rotation_matrix, se3_transform
 
 _TINY = 1e-12
 
@@ -27,9 +32,7 @@ def se3_hat(xi):
 
 
 def se3_vee(H):
-    H = np.asarray(H, dtype=float)
-    if H.shape != (4, 4):
-        raise ValueError("se3_vee expects a 4x4 matrix")
+    H = finite_matrix(H, (4, 4), "H")
     W = H[:3, :3]
     return np.array([H[0, 3], H[1, 3], H[2, 3], W[2, 1], W[0, 2], W[1, 0]])
 
@@ -102,6 +105,14 @@ def se3_adjoint(T):
 
 
 def se3_left_jacobian_inverse(xi):
+    """Return ``J_l(xi)^{-1}`` for the convention frozen in this package.
+
+    Here ``J_l`` is defined by
+    ``Exp(xi)^{-1} d Exp(xi) = hat(J_l(xi) dxi)``.
+    Some robotics references call this body-trivialized differential ``J_r``;
+    the public function name is retained for compatibility, while this formula
+    is the authoritative convention.
+    """
     xi = finite_vector(xi, 6, "xi")
     v, w = xi[0:3], xi[3:6]
     # ad_xi for [v, w] ordering: [[skew(w), skew(v)], [0, skew(w)]]
@@ -124,7 +135,12 @@ def se3_left_jacobian_inverse(xi):
 
 
 class SE3Metric:
-    """Weighted SE(3) metric ``d_W^2 = ||rho||^2 + w^2 ||theta||^2``."""
+    """Weighted principal-log residual ``delta_W`` used as an objective.
+
+    The historical class name is API compatibility, not a mathematical claim:
+    ``delta_W^2 = ||rho||^2 + w^2 ||theta||^2`` can violate the triangle
+    inequality on SE(3).
+    """
 
     def __init__(self, rotation_weight=1.0):
         try:

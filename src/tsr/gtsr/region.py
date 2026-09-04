@@ -7,7 +7,7 @@ import numpy as np
 from numpy import pi
 
 from ..utils import wrap_to_interval
-from ._validation import finite_vector, se3_transform
+from ._validation import finite_matrix, finite_vector, se3_transform
 from .charts import CanonicalTSRChart, GeneratorChart
 from .domains import CoordinateDomain
 
@@ -18,7 +18,7 @@ _UNSET = object()
 class GTSR:
     """A bounded chart region ``{T0_w @ chart.forward(z) @ Tw_e}``.
 
-    Generic charts support composition, projection, metric membership, and
+    Generic charts support composition, projection, residual-based membership, and
     coordinate-domain sampling. The legacy ``xyzrpy`` membership, distance,
     and coordinate sampling methods remain restricted to
     :class:`CanonicalTSRChart`.
@@ -67,11 +67,28 @@ class GTSR:
 
     @classmethod
     def canonical(cls, T0_w=None, Tw_e=None, Bw=None):
-        """The §6.2 construction map E(T0_w,Tw_e,Bw) = (T0_w,Tw_e,C_TSR,Z(Bw))."""
+        """The §6.2 construction map ``E(...)= (..., C_TSR, Z(kappa(Bw)))``.
+
+        ``kappa`` mirrors the legacy continuous-angle normalization: a negative
+        angular span wraps once by ``2*pi`` and a positive span wider than one
+        revolution is clamped to the full circle.  A negative span that remains
+        negative after one wrap is outside the canonical mathematical contract:
+        legacy's EPSILON-dependent branch has no stable closed-interval meaning.
+        """
         if Bw is None:
             Bw = np.zeros((6, 2))
+        Bw = finite_matrix(Bw, (6, 2), "Bw")
+        normalized = Bw.copy()
+        angular_span = normalized[3:6, 1] - normalized[3:6, 0]
+        angular_span = np.where(angular_span < 0.0, angular_span + 2.0 * pi, angular_span)
+        span_tolerance = 8.0 * np.spacing(2.0 * pi)
+        angular_span = np.where((angular_span < 0.0) & (angular_span >= -span_tolerance), 0.0, angular_span)
+        if np.any(angular_span < 0.0):
+            raise ValueError("Bw angular bounds must be at least -2*pi wide for canonical embedding")
+        angular_span = np.minimum(angular_span, 2.0 * pi)
+        normalized[3:6, 1] = normalized[3:6, 0] + angular_span
         chart = CanonicalTSRChart()
-        domain = CoordinateDomain.from_bounds(Bw, chart.periodic, chart.periods)
+        domain = CoordinateDomain.from_bounds(normalized, chart.periodic, chart.periods)
         return cls(T0_w, Tw_e, chart, domain)
 
     def is_valid(self, z, ignoreNAN=False):

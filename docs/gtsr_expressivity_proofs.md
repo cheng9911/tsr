@@ -1,7 +1,10 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Copyright (c) 2025 Siddhartha Srinivasa -->
+
 # G-TSR 表示能力：严格证明（P1 与 P2）
 
-状态：`FROZEN`
-日期：`2026-09-03`
+状态：`CORRECTED / PENDING REVIEW`
+日期：`2026-09-04`
 上游：`docs/gtsr_geometry_validation_plan.md`（§3.5、§6.6、§11 硬门 G3）
 
 本文给出 G-TSR 表示能力的两个核心命题的严格证明：
@@ -16,10 +19,26 @@
 - `SE(3)`：刚体变换群；`se(3)`：其李代数，twist 记为 `ξ = [v, ω] ∈ ℝ⁶`（`v` 线性在前，`ω` 角速度在后）。
 - 指数映射 `Exp : se(3) → SE(3)`；`Ad_T : se(3) → se(3)` 为伴随作用。
 - 螺距：对 `ξ = [v, ω]`、`ω ≠ 0`，`h(ξ) = ωᵀv / ‖ω‖²`；`ω = 0` 记 `h = ∞`（纯平移）。
-- 表示族：
+- 表示族（两者均指**单个区域**，不包含 `TSRChain`、有限/无限 union 或轨迹级组合）：
   - `𝔉_GTSR`：所有 `R(G) = { T0 Φ_C(z) Te | z ∈ Z }`，`C` 为任意 generator chart（PoE，任意 screw 生成元），`Z` 有界。
-  - `𝔉_TSR`：所有传统 TSR 的 `R(TSR) = { T0_w Φ_TSR(z) Tw_e | z ∈ B_w }`，其中
-    `Φ_TSR(z) = Trans(x,y,z) Rz(yaw) Ry(pitch) Rx(roll)`，`B_w` 为 6×2 box bounds。
+  - `𝔉_TSR`：所有**语义合法**传统单 TSR 的
+    `R(TSR) = { T0_w Φ_TSR(z) Tw_e | z ∈ κ(B_w) }`。这里 `T0_w,Tw_e` 是有限合法的 `SE(3)`
+    变换，`B_w` 是有限 `6×2` bounds，平移下界不大于上界，且每个 raw 角 span `Δ≥-2π`。
+    `Δ<-2π` 会使旧实现的 `EPSILON` 分支在近阈值处改变集合语义，因而不是本数学表示族的合法角域。
+- legacy 角 bounds 规范化 `κ`：平移三维不变。对角维 raw span `Δ=u-l`，令
+
+  \[
+  \Delta_\kappa=
+  \begin{cases}
+  \min\{2\pi,\Delta\}, & \Delta\ge0,\\
+  \Delta+2\pi, & -2\pi\le\Delta<0.
+  \end{cases}
+  \]
+
+  连续下界是 `wrap(l)` 到 `[-π,π)`，连续上界为 `wrap(l)+Δκ`。因此负 span 只 wrap 一次，正 span
+  超过 `2π` clamp 为整圆。这正是具有合法连续角域的 legacy TSR 的位姿集合语义。
+- canonical map 为
+  `Φ_TSR(z) = Trans(x,y,z) Rz(yaw) Ry(pitch) Rx(roll)`。
 - 见证曲线（witness）：`S_h = { Exp(ξ_h q) | q ∈ [a,b] }`，`ξ_h = [v,ω]`，`ω ≠ 0`，`h = ωᵀv/‖ω‖² ≠ 0`，`a < b`。
 
 ## 2. P1：构造性精确嵌入
@@ -29,7 +48,7 @@
 **证明。** 定义构造映射
 
 \[
-E(T_0, T_e, B_w) = (T_0, T_e, \mathcal C_{\mathrm{TSR}}, \mathcal Z(B_w)),
+E(T_0, T_e, B_w) = (T_0, T_e, \mathcal C_{\mathrm{TSR}}, \mathcal Z(\kappa(B_w))),
 \]
 
 其中 `C_TSR` 是 canonical chart，其前向
@@ -39,24 +58,28 @@ E(T_0, T_e, B_w) = (T_0, T_e, \mathcal C_{\mathrm{TSR}}, \mathcal Z(B_w)),
 = \operatorname{Trans}(x,y,z) R_z(\mathrm{yaw}) R_y(\mathrm{pitch}) R_x(\mathrm{roll}),
 \]
 
-`Z(B_w)` 是与 `B_w` 相同 bounds 的坐标域（周期维按 `CircularInterval(2π)`，其余 `LinearInterval`）。
+`Z(κ(B_w))` 使用上述规范化后的集合 bounds（周期维按 `CircularInterval(2π)`，其余
+`LinearInterval`）。不同但相差整数个 `2π` 的角坐标代表同一旋转，因此规范化不改变 legacy 位姿集合。
 
-对任意传统 TSR（外 frame `T0_w, Tw_e`，bounds `B_w`），令 `G = E(T0_w, Tw_e, B_w)`。断言两个位姿集合相等：
+对任意上述定义的语义合法传统 TSR（外 frame `T0_w, Tw_e`，bounds `B_w`），令
+`G = E(T0_w, Tw_e, B_w)`。断言两个位姿集合相等：
 
 \[
 R(\mathrm{TSR}) = R(G).
 \]
 
-- **`R(TSR) ⊆ R(G)`**：取任意 `T ∈ R(TSR)`，由定义存在 `z ∈ B_w` 使 `T = T0_w Φ_TSR(z) Tw_e`。
-  而 `Φ_TSR(z)` 恰为 `C_TSR.forward(z)`，且 `z ∈ B_w ⟺ z ∈ Z(B_w)`（`Z` 由 `B_w` 构造）。
+- **`R(TSR) ⊆ R(G)`**：取任意 `T ∈ R(TSR)`，由规范化后的集合定义存在
+  `z ∈ κ(B_w)` 使 `T = T0_w Φ_TSR(z) Tw_e`。而 `Φ_TSR(z)` 恰为 `C_TSR.forward(z)`，且
+  `z ∈ κ(B_w) ⟺ z ∈ Z(κ(B_w))`。
   故 `T = T0_w C_TSR.forward(z) Tw_e ∈ R(G)`。
-- **`R(G) ⊆ R(TSR)`**：取任意 `T ∈ R(G)`，形如 `T = T0_w C_TSR.forward(z) Tw_e`、`z ∈ Z(B_w)`。
-  由 `C_TSR.forward ≡ Φ_TSR` 与 `Z(B_w)` 的定义，`T` 正是传统 TSR 在 `z` 处的位姿，故 `T ∈ R(TSR)`。
+- **`R(G) ⊆ R(TSR)`**：取任意 `T ∈ R(G)`，形如 `T = T0_w C_TSR.forward(z) Tw_e`、
+  `z ∈ Z(κ(B_w))`。由 `C_TSR.forward ≡ Φ_TSR` 与规范域定义，`T` 正是传统 TSR 的位姿，故
+  `T ∈ R(TSR)`。
 
 故 `R(E(...)) = R(TSR)`，嵌入是精确的。∎
 
-**代码对应**：`E` 由 `GTSR.canonical(T0_w, Tw_e, Bw)` 实现，`Φ_TSR` 由 `CanonicalTSRChart.forward`
-实现，二者逐项对应上述数学符号。数值佐证为 E-01~E-10（确定性场景）与 5000 差分样本
+**代码对应**：`E` 由 `GTSR.canonical(T0_w, Tw_e, Bw)` 实现（入口先执行 `κ`），`Φ_TSR` 由
+`CanonicalTSRChart.forward` 实现，二者逐项对应上述数学符号。数值佐证为 E-01~E-10（确定性场景）与 5000 差分样本
 （`max(e_t, e_R) ≤ 1e-10`，Sprint A 已交付）。
 
 ## 3. P2：严格包含
@@ -86,7 +109,7 @@ R(G) = \{ \Phi_C(q) \mid q \in [a,b] \} = \{ \operatorname{Exp}(\xi_h q) \mid q 
 Ad_T \xi = \big[ R v + p \times (R \omega),\; R \omega \big].
 \]
 
-于是
+若 `ω=0`，则变换后 `Rω=0`，纯平移仍为纯平移，故约定意义下 `∞` 保持不变。以下设 `ω≠0`，于是
 
 \[
 h(Ad_T \xi)
@@ -101,34 +124,37 @@ h(Ad_T \xi)
 **引理** 传统 TSR 中若仅一个坐标自由（其余零宽），其 1 参数族在每点的切 screw 螺距属于 `{0, ∞}`。
 
 **证明。** 该 1 参数族形如 `g(q) = T0_w Φ_TSR(z_1,…,q,…,z_6) Tw_e`（仅第 `i` 坐标 `q` 自由）。
-其切 screw 在任意 frame（body 或 spatial）下都是 `∂Φ_TSR/∂z_i` 经固定 `T0_w, Tw_e` 的 `Ad` 共轭；
-而 pitch 是 frame 无关标量。`Φ_TSR` 的坐标偏导：
+以 body 或 spatial trivialization 将矩阵切向量映射到 `se(3)`。具体地，左外 frame 在 spatial twist
+中给出 `Ad_{T0_w}`，右外 frame 在 body twist 中给出 `Ad_{Tw_e^{-1}}`；canonical 乘积中该坐标前后
+已固定的因子也只产生固定 `Ad` 变换。因此无需把裸矩阵偏导误称为 screw。该坐标的 trivialized
+生成方向为：
 
-- 平移坐标 `x/y/z`：`∂Φ_TSR/∂z_i` 是纯平移（`ω = 0`，螺距 `∞`）；
-- 旋转坐标 `roll/pitch/yaw`：`∂Φ_TSR/∂z_i` 是绕对应轴的纯旋转（`ω ≠ 0` 且 `h = 0`）。
+- 平移坐标 `x/y/z`：对应的 trivialized direction 是纯平移（`ω = 0`，螺距 `∞`）；
+- 旋转坐标 `roll/pitch/yaw`：对应的 trivialized direction 是绕相应轴的纯旋转（`ω ≠ 0` 且 `h = 0`）。
 
-由 L1，螺距在 `Ad` 共轭下不变，故 `dg/dq` 的螺距 ∈ `{0, ∞}`。∎
+由 L1，螺距在这些 `Ad` 变换下不变，故曲线的 trivialized tangent screw 螺距 ∈ `{0, ∞}`。∎
 
 ### 3.4 引理 L3：维数与奇异面
 
 **引理** 设 `g = T0_w ∘ Φ_TSR ∘ Tw_e`（`Tw_e` 右乘、`T0_w` 左乘均为 `SE(3)` 微分同胚，不改变 rank 与
 维数）。则
 
-1. 在 `pitch ≠ ±π/2` 处，`dΦ_TSR` 满秩（rank = 6）：六个坐标方向线性无关；
-2. 在 `pitch = ±π/2` 处（Euler 奇异面），roll 与 yaw 的旋转轴共线，`dΦ_TSR` 秩降为 5，此时 roll/yaw
+1. 在 `cos(pitch)≠0` 处，`dΦ_TSR` 满秩（rank = 6）：六个坐标方向线性无关；
+2. 在 `cos(pitch)=0`（即 `pitch=π/2 mod π`）处，roll 与 yaw 的旋转轴共线，`dΦ_TSR` 秩降为 5，此时 roll/yaw
    合并为单一有效旋转自由度，其余坐标（`x,y,z` 平移）仍独立。
 
 **证明（要点）** `Φ_TSR(z) = Trans · Rz · Ry · Rx`。其六个生成方向为 `x,y,z` 平移与 `x,y,z` 轴旋转；
 平移三方向恒线性无关。旋转部分 `Rz(yaw) Ry(pitch) Rx(roll)` 的 Jacobian（body 速度）在
-`pitch ≠ ±π/2` 时为满秩 3；在 `pitch = ±π/2` 时 roll 与 yaw 轴对齐，旋转 Jacobian 秩降为 2，仅剩
-一个有效旋转方向（`pitch` 此时固定）。故结论成立。∎
+`cos(pitch)≠0` 时为满秩 3；在 `cos(pitch)=0` 时 roll 与 yaw 轴对齐，旋转 Jacobian 秩降为 2：
+一个 pitch 方向加一个合并后的 roll/yaw 方向。后文若把 pitch 固定在奇异面上，则只余后者。故结论成立。∎
 
 ### 3.5 反证：`S_h ∉ 𝔉_TSR`
 
 **命题** 非零有限螺距的见证曲线 `S_h` 不在 `𝔉_TSR` 中。
 
-**证明。** 反设存在传统 TSR 使 `R(TSR) = S_h`，记 `g = T0_w ∘ Φ_TSR ∘ Tw_e`、`Z = B_w`，令 `d` 为
-`B_w` 中非退化（非零宽）坐标的个数。因 `S_h` 是 1 维光滑子流形且 `g(Z) = S_h`，必有 `d ≥ 1`
+**证明。** 反设存在传统 TSR 使 `R(TSR) = S_h`，记 `g = T0_w ∘ Φ_TSR ∘ Tw_e`、`Z = κ(B_w)`，令 `d` 为
+`κ(B_w)` 中非退化（非零宽）坐标的个数。因非零螺距使 `S_h` 为 1 维嵌入光滑曲线（含端点），且
+`g(Z) = S_h`，必有 `d ≥ 1`
 （否则像为单点）。
 
 **情形 1：`d = 1`。** 由 L2，`g` 的 1 参数族切 screw 螺距 ∈ `{0, ∞}`。但 `S_h = Exp(ξ_h q)` 在每点的
@@ -136,11 +162,14 @@ h(Ad_T \xi)
 
 **情形 2：`d ≥ 2`。**
 
-- 若存在正则点 `z ∈ int(Z)`（`pitch ≠ ±π/2`），则由 L3(1)，`dg_z` 满秩 `d ≥ 2`，局部像为 ≥2 维
-  子流形，不能等于 1 维 `S_h`。矛盾。
-- 否则 `g(Z) = S_h` 完全落在 `pitch = ±π/2` 奇异面上，即 `pitch` 固定在 `±π/2`（零宽），自由坐标
+- 若 active sub-box 的相对内部存在正则点 `z`（`cos(pitch)≠0`），则由 L3(1)，完整 Jacobian 的任意
+  active 列子集线性无关，restricted Jacobian 的秩为 `d≥2`。常秩/逆函数定理给出局部像维数至少 2，
+  不能等于 1 维 `S_h`。矛盾。特别地，pitch 若非退化，其区间相对内部必含正则点，因为奇异值是离散的。
+- 否则 active sub-box 完全落在 `cos(pitch)=0` 奇异面上，即 pitch 固定为 `π/2 mod π`（零宽），自由坐标
   属于 `{x, y, z, roll, yaw}`。由 L3(2)，奇异面上 roll 与 yaw 合并为一个有效旋转（零螺距）。于是：
-  - 若任一平移坐标 `{x,y,z}` 自由，该平移方向（螺距 `∞`）与有效旋转方向独立，局部像 ≥2 维，矛盾；
+  - 若至少两个平移坐标自由，其平移列彼此独立，restricted rank 至少 2，矛盾；
+  - 若至少一个平移坐标与至少一个旋转坐标自由，平移方向与非零有效旋转方向独立，restricted rank
+    至少 2，矛盾；
   - 若仅 `roll, yaw` 自由（`d = 2`），奇异面上二者合并为单一有效旋转，像为 1 维纯旋转（零螺距），
     不可能是非零有限螺距的 `S_h`。矛盾。
 

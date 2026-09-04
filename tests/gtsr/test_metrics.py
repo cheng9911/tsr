@@ -35,6 +35,13 @@ def test_M01_hat_vee_roundtrip():
     np.testing.assert_allclose(H[3, :], [0, 0, 0, 0], atol=1e-15)
 
 
+def test_M01_vee_rejects_nonfinite_matrix():
+    H = np.zeros((4, 4))
+    H[0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        se3_vee(H)
+
+
 def test_M02_skew_is_antisymmetric():
     w = np.array([0.1, -0.2, 0.3])
     np.testing.assert_allclose(skew(w), -skew(w).T, atol=1e-15)
@@ -143,6 +150,48 @@ def test_M09_so3_and_se3_log_random_axes_near_pi_roundtrip(delta):
         recovered_R = se3_exp(np.hstack((np.zeros(3), so3_log(T[:3, :3]))))[:3, :3]
         np.testing.assert_allclose(recovered_R, T[:3, :3], rtol=0.0, atol=1e-10)
         np.testing.assert_allclose(se3_exp(se3_log(T)), T, rtol=0.0, atol=1e-10)
+
+
+def test_M10_principal_log_residual_is_not_a_mathematical_metric():
+    """Limitation canary: the compatibility name must not imply triangle inequality."""
+    xi_a = np.array(
+        [
+            -2.846905572150202,
+            0.4838265621800239,
+            2.6171445119208743,
+            1.5205491102877773,
+            -0.6905661330922319,
+            1.2585542302394472,
+        ]
+    )
+    xi_b = np.array(
+        [
+            -0.07022676080177756,
+            1.7362252912372718,
+            -1.746860569184871,
+            1.268868688332276,
+            0.34793094906799144,
+            0.1339835733116889,
+        ]
+    )
+    xi_c = np.array(
+        [
+            2.421395130178081,
+            3.3820542492183465,
+            -0.9516262667279863,
+            1.7292616414824393,
+            1.7389551724334569,
+            0.4400481754030808,
+        ]
+    )
+    metric = SE3Metric(rotation_weight=1.0)
+    A, B, C = se3_exp(xi_a), se3_exp(xi_b), se3_exp(xi_c)
+
+    ab = metric.distance(A, B)
+    bc = metric.distance(B, C)
+    ac = metric.distance(A, C)
+
+    assert ac > ab + bc + 0.1
 
 
 @pytest.mark.parametrize("weight", [0.0, -1.0, np.nan, np.inf])
