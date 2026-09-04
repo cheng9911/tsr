@@ -6,6 +6,8 @@
 from .charts import CanonicalTSRChart, GeneratorChart, PoEChart
 from .domains import CircularInterval, CoordinateDomain, Interval, LinearInterval
 from .metrics import SE3Metric
+from .observability import symmetric_residual_set_discrepancy
+from .profile import CellStatus, ProfileIdentifier, ResponseProfile
 from .projection import ProjectionResult
 from .region import GTSR
 from .response import ResponseOperator
@@ -22,4 +24,8 @@ __all__ = [
     "ProjectionResult",
     "GTSR",
     "ResponseOperator",
+    "ResponseProfile",
+    "ProfileIdentifier",
+    "CellStatus",
+    "symmetric_residual_set_discrepancy",
 ]

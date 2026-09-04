@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Siddhartha Srinivasa
+
+"""A-01 ~ A-03: region-level observability (Sprint E, E-A evidence layer)."""
+
+import numpy as np
+
+from tsr.gtsr import GTSR, ResponseOperator
+from tsr.gtsr.metrics import SE3Metric, se3_exp, se3_log
+from tsr.gtsr.observability import (
+    calibrate_epsilon_obs,
+    region_discrepancy,
+    symmetric_residual_set_discrepancy,
+)
+from tsr.gtsr.profile import CellStatus, adjudicate_cell
+
+I6 = np.eye(6)
+DELTA = 0.3  # pure-yaw intervention amplitude (rad)
+
+# x = y = 0 makes the pure-yaw action map Phi(z) -> Phi(z + delta) exactly, so the
+# follow/ignore and symmetry-control discrepancies are analytic (scope §6).
+NARROW_BW = np.array(
+    [
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-0.1, 0.1],
+        [-0.1, 0.1],
+        [-0.1, 0.1],
+        [-0.05, 0.05],
+    ]
+)
+FULL_YAW_BW = np.array(
+    [
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-0.1, 0.1],
+        [-0.1, 0.1],
+        [-0.1, 0.1],
+        [-np.pi, np.pi],
+    ]
+)
+
+
+def _yaw_relation():
+    return se3_exp(np.array([0.0, 0.0, 0.0, 0.0, 0.0, DELTA]))
+
+
+def test_A01_narrow_follow_ignore_is_observable():
+    op = ResponseOperator(np.eye(4), I6)
+    base = GTSR.canonical(Bw=NARROW_BW)
+    relation = _yaw_relation()
+    follow = op.condition(base, relation, np.ones(6))  # yaw propagated
+    ignore = op.condition(base, relation, np.array([1, 1, 1, 1, 1, 0]))  # yaw released
+
+    # Deterministic: the follow region is the ignore region left-multiplied by a
+    # pure yaw rotation of DELTA (exact for every chart coordinate).
+    rng = np.random.default_rng(0)
+    for _ in range(8):
+        z = base.domain.sample(rng)
+        np.testing.assert_allclose(follow.to_transform(z), relation @ ignore.to_transform(z), atol=1e-12)
+
+    # Because the yaw domain is narrow, that rotation carries poses out of the
+    # region, so the residual-set discrepancy is far above the calibration floor.
+    discrepancy = region_discrepancy(follow, ignore, n_samples=128, rng=rng)
+    epsilon_obs = calibrate_epsilon_obs([], epsilon_num=1e-3)
+    assert discrepancy > epsilon_obs
+    assert discrepancy >= 0.2  # yaw gap alone is DELTA - 2*halfwidth = 0.2
+
+    status = adjudicate_cell(excited=True, observable=True, fit_succeeded=True, meets_heldout_gate=True)
+    assert status is CellStatus.IDENTIFIED
+
+
+def test_A02_wide_domain_symmetry_control_unobservable():
+    op = ResponseOperator(np.eye(4), I6)
+    base = GTSR.canonical(Bw=FULL_YAW_BW)
+    relation = _yaw_relation()
+    action = op.action(relation, np.ones(6))
+    cond = op.condition(base, relation, np.ones(6))
+
+    # Action is a pure z-rotation (no translation), and the region yaw domain is a
+    # full circle, so the action maps the region set onto itself.
+    log = se3_log(action)
+    np.testing.assert_allclose(log[:3], 0.0, atol=1e-12)
+    np.testing.assert_allclose(log[3:], [0.0, 0.0, DELTA], atol=1e-12)
+    yaw_span = base.domain.cont_upper[5] - base.domain.cont_lower[5]
+    assert np.isclose(yaw_span, 2.0 * np.pi)
+    assert cond.domain is base.domain and cond.chart is base.chart
+
+    # Pointwise identity: A Phi(z) == Phi(z with yaw += delta) for x = y = 0.
+    rng = np.random.default_rng(0)
+    for _ in range(8):
+        z = base.domain.sample(rng)
+        z_shifted = z.copy()
+        z_shifted[5] = (z[5] + DELTA + np.pi) % (2.0 * np.pi) - np.pi
+        np.testing.assert_allclose(action @ base.to_transform(z), base.to_transform(z_shifted), atol=1e-9)
+
+    # Therefore D_W(base, A base) == 0 -> the yaw response is region-unobservable.
+    status = adjudicate_cell(excited=True, observable=False, fit_succeeded=True, meets_heldout_gate=True)
+    assert status is CellStatus.UNOBSERVABLE
+
+
+def test_A03_epsilon_obs_calibration():
+    # Deterministic control -> only the numeric floor survives.
+    assert calibrate_epsilon_obs([], epsilon_num=1e-6) == 1e-6
+    assert calibrate_epsilon_obs([1e-15], epsilon_num=1e-6) == 1e-6
+    # Non-deterministic control -> 0.99 quantile dominates when it exceeds the floor.
+    control = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    assert calibrate_epsilon_obs(control, epsilon_num=1e-6) == np.quantile(control, 0.99)
+
+
+def test_A04_symmetric_residual_set_discrepancy_basic():
+    metric = SE3Metric()
+    a = np.stack([np.eye(4), se3_exp(np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0]))])
+    b = np.stack([se3_exp(np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.2]))])
+    d = symmetric_residual_set_discrepancy(a, b, metric)
+    assert d > 0.0 and np.isfinite(d)
