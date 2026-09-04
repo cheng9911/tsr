@@ -13,7 +13,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from tsr.gtsr.profile import matrix_pose2, pose2_matrix, se2_exp, se2_log, socket_frame
+from tsr.gtsr.profile import (
+    from_metric,
+    matrix_pose2,
+    pose2_matrix,
+    se2_exp,
+    se2_log,
+    socket_frame,
+    to_metric,
+)
 
 
 def _curve(curve, name):
@@ -115,3 +123,47 @@ class FrameActionModel(FixedActionModel):
 
     def predict(self, contexts):
         return apply_actions(self.actions(contexts), self.nominal_curve)
+
+
+class FullOperatorModel:
+    """Frozen sister dense affine 3x3 direct-update comparator (not a response law)."""
+
+    name = "Full Operator"
+
+    def __init__(self, nominal_curve, ridge=1e-8):
+        self.nominal_curve = _curve(nominal_curve, "nominal_curve").copy()
+        self.ridge = float(ridge)
+        if not np.isfinite(self.ridge) or self.ridge < 0.0:
+            raise ValueError("ridge must be finite and non-negative")
+
+    def fit(self, contexts, curves, progress, phase_codes):
+        contexts = _contexts(contexts)
+        curves = np.asarray(curves, dtype=np.float64)
+        if curves.ndim != 3 or curves.shape != (len(contexts), len(self.nominal_curve), 3):
+            raise ValueError("curves must have shape (n, steps, 3) matching nominal_curve")
+        if not np.all(np.isfinite(curves)):
+            raise ValueError("curves must be finite")
+        contexts_metric = to_metric(contexts)
+        curves_metric = to_metric(curves)
+        design = np.column_stack([np.ones(len(contexts_metric)), contexts_metric])
+        regularizer = self.ridge * np.eye(design.shape[1])
+        regularizer[0, 0] = 0.0
+        inverse = np.linalg.solve(design.T @ design + regularizer, design.T)
+        self.intercept_metric = np.empty((len(self.nominal_curve), 3), dtype=np.float64)
+        self.operator_metric = np.empty((len(self.nominal_curve), 3, 3), dtype=np.float64)
+        for step in range(len(self.nominal_curve)):
+            coefficients = inverse @ curves_metric[:, step]
+            self.intercept_metric[step] = coefficients[0]
+            self.operator_metric[step] = coefficients[1:]
+        return self
+
+    def predict(self, contexts):
+        contexts_metric = _contexts(contexts)
+        contexts_metric = to_metric(contexts_metric)
+        prediction = np.empty((len(contexts_metric), len(self.nominal_curve), 3), dtype=np.float64)
+        for step in range(len(self.nominal_curve)):
+            prediction[:, step] = self.intercept_metric[step] + contexts_metric @ self.operator_metric[step]
+        return from_metric(prediction)
+
+    def actions(self, contexts):
+        return nominal_relative_actions(self.predict(contexts), self.nominal_curve)

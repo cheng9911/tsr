@@ -9,6 +9,7 @@ import pytest
 from tests.gtsr._baseline_models import (
     FixedActionModel,
     FrameActionModel,
+    FullOperatorModel,
     apply_actions,
     nominal_relative_actions,
 )
@@ -54,3 +55,16 @@ def test_B04_baseline_adapter_rejects_shape_mismatch():
         FixedActionModel(np.zeros((3, 2)))
     with pytest.raises(ValueError):
         nominal_relative_actions(np.zeros((2, 3, 3)), _nominal_curve()[:2])
+
+
+def test_B05_full_operator_recovers_a_planted_dense_direct_update():
+    nominal = _nominal_curve()
+    contexts = np.array([[-0.01, 0.02, -0.2], [0.01, -0.02, 0.2], [0.015, 0.01, -0.1], [-0.015, -0.01, 0.1]])
+    transform = np.array([[1.0, 0.3, 0.1], [-0.2, 0.8, 0.2], [0.1, 0.1, 0.7]])
+    offset = np.array([0.02, -0.01, 0.1])
+    curves = np.empty((len(contexts), len(nominal), 3))
+    for step in range(len(nominal)):
+        curves[:, step] = offset + contexts @ transform
+    model = FullOperatorModel(nominal, ridge=0.0).fit(contexts, curves, None, None)
+    np.testing.assert_allclose(model.predict(contexts), curves, atol=1e-12)
+    np.testing.assert_allclose(apply_actions(model.actions(contexts), nominal), curves, atol=1e-12)
