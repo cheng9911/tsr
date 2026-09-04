@@ -190,6 +190,7 @@ class SeedDataset:
     test_condition_ids: list
     nominal_frame_xy: np.ndarray
     nominal_frame_yaw: float
+    nominal_curve: np.ndarray
     target_profile: np.ndarray
     mixed_keys: list
     isolated_keys: list
@@ -251,6 +252,7 @@ def load_seed_dataset(h5_path, bins=25):
             raise RuntimeError("held-out isolated amplitudes do not match the frozen manifest")
 
         target_profile = empirical_isolated_profile(data_file, baseline_key, isolated_keys, bins)
+        nominal_curve = task_curve(data_file[baseline_key], bins)
 
         # Recover the nominal socket frame from mixed conditions only.
         nominal_xy_candidates = []
@@ -291,6 +293,7 @@ def load_seed_dataset(h5_path, bins=25):
         test_condition_ids=test_condition_ids,
         nominal_frame_xy=nominal_frame_xy,
         nominal_frame_yaw=nominal_frame_yaw,
+        nominal_curve=nominal_curve,
         target_profile=target_profile,
         mixed_keys=mixed_keys,
         isolated_keys=isolated_keys,
