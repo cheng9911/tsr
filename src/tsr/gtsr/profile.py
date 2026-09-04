@@ -144,12 +144,64 @@ def adjudicate_cell(*, excited, observable, fit_succeeded, meets_heldout_gate):
     return CellStatus.IDENTIFIED
 
 
+def excitation_mask(contexts, *, tol=1e-12):
+    """Per-generator excitation booleans from intervention contexts (scope §7 step 1).
+
+    A generator is *excited* only when the training interventions cover both signs of
+    that relation coordinate (a positive and a negative control); a column that never
+    crosses zero cannot identify a signed response law and yields ``UNEXCITED``.
+    """
+    contexts = np.asarray(contexts, dtype=np.float64)
+    if contexts.ndim != 2:
+        raise ValueError(f"contexts must have shape (n, 3), got {contexts.shape}")
+    return (np.min(contexts, axis=0) < -tol) & (np.max(contexts, axis=0) > tol)
+
+
+def cell_statuses(contexts, *, observable, fit_succeeded, meets_heldout_gate):
+    """Produce per-generator ``CellStatus`` from data (scope §7 priority order).
+
+    ``excited`` is derived from ``contexts`` (signed intervention coverage); the
+    remaining inputs are per-generator booleans (scalars broadcast across the three
+    planar generators). This is the data -> status adjudication path;
+    :func:`adjudicate_cell` is only its underlying truth table.
+    """
+    excited = excitation_mask(contexts)
+    shape = excited.shape
+    observable = np.broadcast_to(np.asarray(observable), shape)
+    fit_succeeded = np.broadcast_to(np.asarray(fit_succeeded), shape)
+    meets_heldout_gate = np.broadcast_to(np.asarray(meets_heldout_gate), shape)
+    return [
+        adjudicate_cell(
+            excited=bool(exc),
+            observable=bool(obs),
+            fit_succeeded=bool(fit),
+            meets_heldout_gate=bool(gate),
+        )
+        for exc, obs, fit, gate in zip(excited, observable, fit_succeeded, meets_heldout_gate)
+    ]
+
+
 def rbf_basis(progress, n_basis=24, basis_width=0.065):
     """Normalized Gaussian RBF basis on ``[0, 1]`` (frozen parameterization)."""
     progress = np.asarray(progress, dtype=np.float64)
     centers = np.linspace(0.0, 1.0, n_basis)
     basis = np.exp(-0.5 * ((progress[:, None] - centers[None, :]) / basis_width) ** 2)
     return basis / basis.sum(axis=1, keepdims=True)
+
+
+def _normalize_phase_to_q(phase_to_q):
+    """Coerce and validate the oracle-phase -> q-index map.
+
+    The frozen mapping is ``g(k, rho) = (q(k) + rho) / K`` with ``K`` the number of
+    registered fitting phases; the ``q`` values must therefore be the contiguous
+    range ``0 .. K-1`` (scope §3).
+    """
+    mapping = {int(k): int(q) for k, q in dict(phase_to_q).items()}
+    if not mapping:
+        raise ValueError("phase_to_q must map at least one phase code to a q index")
+    if sorted(mapping.values()) != list(range(len(mapping))):
+        raise ValueError("phase_to_q values must be the contiguous range 0..K-1")
+    return mapping
 
 
 class ResponseProfile:
@@ -167,10 +219,10 @@ class ResponseProfile:
             raise ValueError(f"theta must have shape (3, n_basis), got {theta.shape}")
         self._theta = theta.copy()
         self._n_basis = theta.shape[1]
-        self.phase_to_q = {int(k): int(q) for k, q in dict(phase_to_q).items()}
-        self.alpha_max = float(alpha_max)
-        self.basis_width = float(basis_width)
-        self.optimization = dict(optimization) if optimization else {}
+        self._phase_to_q = _normalize_phase_to_q(phase_to_q)
+        self._alpha_max = float(alpha_max)
+        self._basis_width = float(basis_width)
+        self._optimization = dict(optimization) if optimization else {}
 
     @property
     def theta(self):
@@ -180,16 +232,32 @@ class ResponseProfile:
     def n_basis(self):
         return self._n_basis
 
+    @property
+    def phase_to_q(self):
+        return dict(self._phase_to_q)
+
+    @property
+    def alpha_max(self):
+        return self._alpha_max
+
+    @property
+    def basis_width(self):
+        return self._basis_width
+
+    @property
+    def optimization(self):
+        return dict(self._optimization)
+
     def _alpha_from_g(self, g):
         g = np.asarray(g, dtype=np.float64)
-        basis = rbf_basis(np.atleast_1d(g), self._n_basis, self.basis_width)
+        basis = rbf_basis(np.atleast_1d(g), self._n_basis, self._basis_width)
         logits = basis @ self._theta.T
-        return self.alpha_max / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
+        return self._alpha_max / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
 
     def alpha(self, phase_code, rho):
         """Planar relevance ``[a_du, a_dv, a_yaw]`` at hybrid phase ``(k, rho)``."""
-        q = self.phase_to_q[int(phase_code)]
-        g = (q + float(rho)) / len(self.phase_to_q)
+        q = self._phase_to_q[int(phase_code)]
+        g = (q + float(rho)) / len(self._phase_to_q)
         return np.asarray(self._alpha_from_g(g)).reshape(-1)
 
     def alpha6(self, phase_code, rho):
@@ -198,12 +266,12 @@ class ResponseProfile:
 
     def to_dict(self):
         return {
-            "alpha_max": self.alpha_max,
-            "basis_width": self.basis_width,
+            "alpha_max": self._alpha_max,
+            "basis_width": self._basis_width,
             "n_basis": self._n_basis,
-            "phase_to_q": {str(k): v for k, v in self.phase_to_q.items()},
+            "phase_to_q": {str(k): v for k, v in self._phase_to_q.items()},
             "theta": self._theta.tolist(),
-            "optimization": self.optimization,
+            "optimization": dict(self._optimization),
         }
 
     @classmethod
@@ -347,6 +415,10 @@ class ProfileIdentifier:
             raise ValueError("contexts and curves must be finite")
         if not np.all(np.isfinite(progress)):
             raise ValueError("progress must be finite")
+        if np.linalg.matrix_rank(to_metric(contexts)) < 3:
+            raise ValueError("intervention contexts are rank-deficient; all three generators must be excited")
+        if not np.all(excitation_mask(contexts)):
+            raise ValueError("one or more generators lack signed (+/-) intervention coverage (UNEXCITED)")
         if nominal_frame_xy is None:
             raise ValueError("nominal_frame_xy is required")
         self.nominal_frame_xy = np.asarray(nominal_frame_xy, dtype=np.float64)
@@ -355,10 +427,14 @@ class ProfileIdentifier:
         self.nominal_frame_yaw = float(nominal_frame_yaw)
         self.nominal_frame = pose2_matrix([*self.nominal_frame_xy, self.nominal_frame_yaw])
         self.nominal_frame_inverse = np.linalg.inv(self.nominal_frame)
+        phase_to_q = _normalize_phase_to_q({3: 0, 4: 1, 5: 2, 6: 3} if phase_to_q is None else phase_to_q)
         if phase_codes is not None:
-            self.phase_codes = np.asarray(phase_codes, dtype=np.int64)
-        if phase_to_q is None:
-            phase_to_q = {3: 0, 4: 1, 5: 2, 6: 3}
+            phase_codes = np.asarray(phase_codes)
+            if phase_codes.shape != progress.shape:
+                raise ValueError("phase_codes must have shape (steps,)")
+            if not np.issubdtype(phase_codes.dtype, np.integer):
+                raise ValueError("phase_codes must contain integer phase codes")
+            self.phase_codes = phase_codes.astype(np.int64)
 
         basis = self._basis(progress)
         intercept_metric, pointwise_diagonal = self._pointwise_diagonal(contexts, curves)

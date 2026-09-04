@@ -12,6 +12,8 @@ from tsr.gtsr.profile import (
     ProfileIdentifier,
     ResponseProfile,
     adjudicate_cell,
+    cell_statuses,
+    excitation_mask,
     matrix_pose2,
     planar_to_se3_alpha,
     planar_to_se3_twist,
@@ -188,3 +190,60 @@ def test_P07_input_contract():
         identifier.fit(contexts, curves, progress, phase_codes, nominal_frame_xy=(0.0, 0.0, 0.0))
     with pytest.raises(ValueError):
         identifier.fit(contexts, curves, progress, phase_codes)
+
+
+def test_P08_rank_deficient_and_unexcited_rejected():
+    identifier = ProfileIdentifier()
+    progress, phase_codes = _progress_grid(10)
+    rng = np.random.default_rng(1)
+    contexts = _full_rank_contexts(30, rng)
+    curves = _response_curves(_nominal_curve(40), contexts, np.ones((40, 3)))
+
+    # Rank-deficient: one generator never varies.
+    degenerate = contexts.copy()
+    degenerate[:, 2] = 0.0
+    with pytest.raises(ValueError):
+        identifier.fit(degenerate, curves, progress, phase_codes, nominal_frame_xy=(0.0, 0.0))
+
+    # Full rank but no signed (negative) coverage on one generator.
+    one_sided = contexts.copy()
+    one_sided[:, 0] = np.abs(one_sided[:, 0])
+    with pytest.raises(ValueError):
+        identifier.fit(one_sided, curves, progress, phase_codes, nominal_frame_xy=(0.0, 0.0))
+
+
+def test_P09_excitation_and_cell_statuses_from_data():
+    contexts = _full_rank_contexts(30, np.random.default_rng(2))
+    assert excitation_mask(contexts).tolist() == [True, True, True]
+
+    # A generator with no negative control is unexcited -> UNEXCITED (abstain).
+    one_sided = contexts.copy()
+    one_sided[:, 2] = np.abs(one_sided[:, 2])
+    assert excitation_mask(one_sided).tolist() == [True, True, False]
+    statuses = cell_statuses(one_sided, observable=True, fit_succeeded=True, meets_heldout_gate=True)
+    assert statuses[0] is CellStatus.IDENTIFIED
+    assert statuses[1] is CellStatus.IDENTIFIED
+    assert statuses[2] is CellStatus.UNEXCITED
+
+    # Unobservable (even when excited and gated) -> UNOBSERVABLE, never IDENTIFIED.
+    statuses = cell_statuses(contexts, observable=False, fit_succeeded=True, meets_heldout_gate=True)
+    assert all(status is CellStatus.UNOBSERVABLE for status in statuses)
+
+
+def test_P10_response_profile_strictly_read_only():
+    profile = ResponseProfile(np.linspace(-1.0, 1.0, 3 * 24).reshape(3, 24), {3: 0, 4: 1, 5: 2, 6: 3})
+
+    # Mutating a returned copy never mutates the profile state.
+    phase_to_q = profile.phase_to_q
+    phase_to_q[99] = 0
+    assert 99 not in profile.phase_to_q
+
+    optimization = profile.optimization
+    optimization["tampered"] = True
+    assert "tampered" not in profile.optimization
+
+    # Scalar metadata is read-only (no setter).
+    with pytest.raises(AttributeError):
+        profile.alpha_max = 2.0
+    with pytest.raises(AttributeError):
+        profile.phase_to_q = {3: 0}

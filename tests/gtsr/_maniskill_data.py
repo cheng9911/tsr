@@ -34,6 +34,11 @@ REQUIRED_PHASES = tuple(PHASES)
 PHASE_CODES = (3, 4, 5, 6)
 SEEDS = (20260818, 20270818, 20280818, 20290818, 20300818)
 
+# Pre-registered context-manifest SHA-256 (scope §5). Kept as an independent
+# constant so a tampered ``fixed_contexts.json`` or ``collection_status.json`` is
+# caught even when the two would otherwise agree with each other.
+CONTEXT_MANIFEST_SHA256 = "3751db801cf49ce698c9b5a74ce36cf0b39897d967ddf2959846a3965b8bd653"
+
 EXPECTED_ISOLATED_CONTEXTS = np.array(
     [
         [0.0, 0.0, np.deg2rad(-30.0)],
@@ -220,6 +225,24 @@ def load_seed_dataset(h5_path, bins=25):
         test_curves = np.asarray([task_curve(data_file[key], bins) for key in isolated_keys])
         test_generators = [str(data_file[key].attrs.get("generator", "")) for key in isolated_keys]
         test_condition_ids = [int(data_file[key].attrs.get("condition_id", -1)) for key in isolated_keys]
+
+        # Frozen intervention integrity (scope §5): the mixed training contexts must
+        # be full-rank, unique, and signed along every generator; the held-out
+        # isolated contexts must reproduce the pre-registered amplitudes exactly.
+        if np.linalg.matrix_rank(train_contexts) != 3:
+            raise RuntimeError("mixed training contexts are not full-rank")
+        if len(np.unique(train_contexts, axis=0)) != len(train_contexts):
+            raise RuntimeError("mixed training contexts are not unique")
+        if (np.min(train_contexts, axis=0) >= 0).any() or (np.max(train_contexts, axis=0) <= 0).any():
+            raise RuntimeError("mixed training contexts lack signed coverage on some generator")
+        isolated_sorted = test_contexts[np.lexsort((test_contexts[:, 0], test_contexts[:, 1], test_contexts[:, 2]))]
+        expected_sorted = EXPECTED_ISOLATED_CONTEXTS[
+            np.lexsort(
+                (EXPECTED_ISOLATED_CONTEXTS[:, 0], EXPECTED_ISOLATED_CONTEXTS[:, 1], EXPECTED_ISOLATED_CONTEXTS[:, 2])
+            )
+        ]
+        if not np.allclose(isolated_sorted, expected_sorted, atol=1e-12):
+            raise RuntimeError("held-out isolated amplitudes do not match the frozen manifest")
 
         target_profile = empirical_isolated_profile(data_file, baseline_key, isolated_keys, bins)
 

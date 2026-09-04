@@ -65,11 +65,53 @@ def region_points(region, rng, n_samples):
 
 
 def region_discrepancy(region_a, region_b, metric=None, n_samples=64, rng=None):
-    """Sampled symmetric residual-set discrepancy between two regions."""
+    """Sampled symmetric residual-set discrepancy between two regions.
+
+    Both regions are evaluated at the *same* sampled chart coordinates, so two
+    identical regions yield exactly zero (independent sampling of the same region
+    returns a positive value and is therefore unusable as an observability oracle).
+    This is a sampled estimate of ``D_W`` for genuinely distinct regions (e.g. a
+    narrow-domain follow/ignore pair), not a global certificate; the two regions
+    must share a chart/domain, as they do under ``ResponseOperator.condition``.
+    """
     if metric is None:
         metric = SE3Metric()
     if rng is None:
         rng = np.random.default_rng()
-    points_a = region_points(region_a, rng, n_samples)
-    points_b = region_points(region_b, rng, n_samples)
+    coordinates = [region_a.domain.sample(rng) for _ in range(n_samples)]
+    points_a = np.asarray([region_a.to_transform(z) for z in coordinates], dtype=np.float64)
+    points_b = np.asarray([region_b.to_transform(z) for z in coordinates], dtype=np.float64)
     return symmetric_residual_set_discrepancy(points_a, points_b, metric)
+
+
+def region_observability_residual(base_region, action, n_samples=64, rng=None):
+    """Max analytic region-fit residual of a response action over the base region.
+
+    For sampled chart coordinates ``z``, the moved pose
+    ``action @ base_region.to_transform(z)`` is residualized against ``base_region``
+    using its exact canonical bounds (``GTSR.distance``), never a non-convex
+    ``project()``. This is zero iff the action leaves the region set invariant
+    (wide-domain symmetry -> ``UNOBSERVABLE``) and positive iff it carries poses out
+    of the region (narrow-domain -> observable). The residual uses the region's
+    coordinate displacement (not ``SE3Metric``'s principal log); only its zero /
+    strictly-positive character feeds the verdict.
+    """
+    action = np.asarray(action, dtype=np.float64)
+    if rng is None:
+        rng = np.random.default_rng()
+    residual = 0.0
+    for _ in range(n_samples):
+        z = base_region.domain.sample(rng)
+        moved = action @ base_region.to_transform(z)
+        residual = max(residual, float(base_region.distance(moved)[0]))
+    return residual
+
+
+def is_region_observable(base_region, action, epsilon_obs, n_samples=64, rng=None):
+    """Whether a response action measurably moves the region (E-A observability).
+
+    ``False`` when the action is a region-set symmetry (residual <= ``epsilon_obs``,
+    ``UNOBSERVABLE``); ``True`` otherwise. Wires the analytic E-A check into the
+    cell-status adjudication path rather than a hardcoded observable flag.
+    """
+    return region_observability_residual(base_region, action, n_samples=n_samples, rng=rng) > epsilon_obs

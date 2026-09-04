@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 Siddhartha Srinivasa
 
-"""A-01 ~ A-03: region-level observability (Sprint E, E-A evidence layer)."""
+"""A-01 ~ A-05: region-level observability (Sprint E, E-A evidence layer)."""
 
 import numpy as np
 
@@ -9,7 +9,9 @@ from tsr.gtsr import GTSR, ResponseOperator
 from tsr.gtsr.metrics import SE3Metric, se3_exp, se3_log
 from tsr.gtsr.observability import (
     calibrate_epsilon_obs,
+    is_region_observable,
     region_discrepancy,
+    region_observability_residual,
     symmetric_residual_set_discrepancy,
 )
 from tsr.gtsr.profile import CellStatus, adjudicate_cell
@@ -52,21 +54,22 @@ def test_A01_narrow_follow_ignore_is_observable():
     follow = op.condition(base, relation, np.ones(6))  # yaw propagated
     ignore = op.condition(base, relation, np.array([1, 1, 1, 1, 1, 0]))  # yaw released
 
-    # Deterministic: the follow region is the ignore region left-multiplied by a
-    # pure yaw rotation of DELTA (exact for every chart coordinate).
+    # Deterministic identity: the follow region is the ignore region left-multiplied
+    # by a pure yaw rotation of DELTA (exact for every chart coordinate).
     rng = np.random.default_rng(0)
     for _ in range(8):
         z = base.domain.sample(rng)
         np.testing.assert_allclose(follow.to_transform(z), relation @ ignore.to_transform(z), atol=1e-12)
 
-    # Because the yaw domain is narrow, that rotation carries poses out of the
-    # region, so the residual-set discrepancy is far above the calibration floor.
-    discrepancy = region_discrepancy(follow, ignore, n_samples=128, rng=rng)
     epsilon_obs = calibrate_epsilon_obs([], epsilon_num=1e-3)
-    assert discrepancy > epsilon_obs
-    assert discrepancy >= 0.2  # yaw gap alone is DELTA - 2*halfwidth = 0.2
+    # The analytic observability check (exact canonical bounds, not sampled points)
+    # reports the yaw response observable: the follow action carries poses out of the
+    # narrow region, and the follow/ignore pair is strictly above the calibration floor.
+    observable = is_region_observable(base, op.action(relation, np.ones(6)), epsilon_obs, rng=rng)
+    assert observable
+    assert region_discrepancy(follow, ignore, n_samples=128, rng=rng) > epsilon_obs
 
-    status = adjudicate_cell(excited=True, observable=True, fit_succeeded=True, meets_heldout_gate=True)
+    status = adjudicate_cell(excited=True, observable=observable, fit_succeeded=True, meets_heldout_gate=True)
     assert status is CellStatus.IDENTIFIED
 
 
@@ -77,8 +80,8 @@ def test_A02_wide_domain_symmetry_control_unobservable():
     action = op.action(relation, np.ones(6))
     cond = op.condition(base, relation, np.ones(6))
 
-    # Action is a pure z-rotation (no translation), and the region yaw domain is a
-    # full circle, so the action maps the region set onto itself.
+    # The action is a pure z-rotation and the yaw domain is a full circle, so the
+    # action maps the region set onto itself.
     log = se3_log(action)
     np.testing.assert_allclose(log[:3], 0.0, atol=1e-12)
     np.testing.assert_allclose(log[3:], [0.0, 0.0, DELTA], atol=1e-12)
@@ -86,15 +89,14 @@ def test_A02_wide_domain_symmetry_control_unobservable():
     assert np.isclose(yaw_span, 2.0 * np.pi)
     assert cond.domain is base.domain and cond.chart is base.chart
 
-    # Pointwise identity: A Phi(z) == Phi(z with yaw += delta) for x = y = 0.
+    # The analytic observability check is *exactly* zero for the region-set symmetry
+    # (a sampled point-set discrepancy would return a positive value here), so the
+    # yaw cell is UNOBSERVABLE — never IDENTIFIED.
     rng = np.random.default_rng(0)
-    for _ in range(8):
-        z = base.domain.sample(rng)
-        z_shifted = z.copy()
-        z_shifted[5] = (z[5] + DELTA + np.pi) % (2.0 * np.pi) - np.pi
-        np.testing.assert_allclose(action @ base.to_transform(z), base.to_transform(z_shifted), atol=1e-9)
+    epsilon_obs = calibrate_epsilon_obs([], epsilon_num=1e-3)
+    assert region_observability_residual(base, action, n_samples=128, rng=rng) == 0.0
+    assert not is_region_observable(base, action, epsilon_obs, rng=rng)
 
-    # Therefore D_W(base, A base) == 0 -> the yaw response is region-unobservable.
     status = adjudicate_cell(excited=True, observable=False, fit_succeeded=True, meets_heldout_gate=True)
     assert status is CellStatus.UNOBSERVABLE
 
@@ -114,3 +116,11 @@ def test_A04_symmetric_residual_set_discrepancy_basic():
     b = np.stack([se3_exp(np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.2]))])
     d = symmetric_residual_set_discrepancy(a, b, metric)
     assert d > 0.0 and np.isfinite(d)
+
+
+def test_A05_identical_region_discrepancy_is_zero():
+    # Shared chart coordinates make an identical-region comparison exactly zero;
+    # independent sampling would return a positive value and is unusable here.
+    base = GTSR.canonical(Bw=NARROW_BW)
+    rng = np.random.default_rng(0)
+    assert region_discrepancy(base, base, n_samples=64, rng=rng) < 1e-12
