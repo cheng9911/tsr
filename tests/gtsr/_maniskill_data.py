@@ -22,8 +22,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import h5py
 import numpy as np
+
+try:
+    import h5py
+except ImportError:  # pragma: no cover - integration tests skip without h5py.
+    h5py = None
 
 from tsr.gtsr.profile import wrap_angle
 
@@ -108,7 +112,7 @@ def task_curve(group, bins):
 def progress_grid(bins):
     phase_progress = np.linspace(0.0, 1.0, bins)
     progress = np.concatenate([(phase_index + phase_progress) / len(PHASE_CODES) for phase_index in range(4)])
-    phase_codes = np.repeat(np.arange(4), bins)
+    phase_codes = np.repeat(PHASE_CODES, bins)
     return progress, phase_codes
 
 
@@ -194,6 +198,8 @@ class SeedDataset:
 
 def load_seed_dataset(h5_path, bins=25):
     """Extract the frozen 30/8/1 split and reference profile from one seed .h5."""
+    if h5py is None:
+        raise ImportError("h5py is required to load Sprint E integration data")
     progress, phase_codes = progress_grid(bins)
     with h5py.File(h5_path, "r") as data_file:
         seed = int(data_file.attrs["seed"])

@@ -15,7 +15,8 @@ triangle inequality (scope §6).
 
 import numpy as np
 
-from .metrics import SE3Metric
+from .charts import CanonicalTSRChart
+from .metrics import SE3Metric, se3_log
 
 
 def symmetric_residual_set_discrepancy(points_a, points_b, metric):
@@ -84,34 +85,53 @@ def region_discrepancy(region_a, region_b, metric=None, n_samples=64, rng=None):
     return symmetric_residual_set_discrepancy(points_a, points_b, metric)
 
 
-def region_observability_residual(base_region, action, n_samples=64, rng=None):
-    """Max analytic region-fit residual of a response action over the base region.
+def region_observability_residual(base_region, action):
+    """Return an exact residual for Sprint E's canonical axis controls.
 
-    For sampled chart coordinates ``z``, the moved pose
-    ``action @ base_region.to_transform(z)`` is residualized against ``base_region``
-    using its exact canonical bounds (``GTSR.distance``), never a non-convex
-    ``project()``. This is zero iff the action leaves the region set invariant
-    (wide-domain symmetry -> ``UNOBSERVABLE``) and positive iff it carries poses out
-    of the region (narrow-domain -> observable). The residual uses the region's
-    coordinate displacement (not ``SE3Metric``'s principal log); only its zero /
-    strictly-positive character feeds the verdict.
+    This intentionally supports only the analytic E-A controls: a pure local
+    translation, or a pure local yaw with zero x/y translation bounds.  A bounded
+    translation box is invariant only to zero translation; a full-circle yaw domain
+    is invariant to pure yaw, while a proper yaw interval is not.  Other charts and
+    coupled actions require a separate proof and are rejected rather than being
+    silently decided from finite random samples.
     """
+    if not isinstance(base_region.chart, CanonicalTSRChart):
+        raise TypeError("analytic observability is restricted to CanonicalTSRChart")
     action = np.asarray(action, dtype=np.float64)
-    if rng is None:
-        rng = np.random.default_rng()
-    residual = 0.0
-    for _ in range(n_samples):
-        z = base_region.domain.sample(rng)
-        moved = action @ base_region.to_transform(z)
-        residual = max(residual, float(base_region.distance(moved)[0]))
-    return residual
+    if action.shape != (4, 4) or not np.all(np.isfinite(action)):
+        raise ValueError("action must be a finite transform shaped (4, 4)")
+
+    local_action = np.linalg.inv(base_region.T0_w) @ action @ base_region.T0_w
+    twist = se3_log(local_action)
+    linear, angular = twist[:3], twist[3:]
+    atol = 1e-12
+
+    if np.allclose(angular, 0.0, atol=atol, rtol=0.0):
+        # Every linear canonical coordinate has bounded support, so a nonzero
+        # translation changes the region set. The magnitude is its exact maximum
+        # coordinate residual at the translated boundary.
+        return float(np.linalg.norm(linear))
+
+    if not np.allclose(linear, 0.0, atol=atol, rtol=0.0) or not np.allclose(angular[:2], 0.0, atol=atol, rtol=0.0):
+        raise ValueError("analytic observability supports only pure translation or pure local yaw")
+
+    xy_bounds = np.column_stack((base_region.domain.cont_lower[:2], base_region.domain.cont_upper[:2]))
+    if not np.allclose(xy_bounds, 0.0, atol=atol, rtol=0.0):
+        raise ValueError("pure-yaw analytic control requires zero x/y translation bounds")
+    yaw_span = base_region.domain.cont_upper[5] - base_region.domain.cont_lower[5]
+    if np.isclose(yaw_span, 2.0 * np.pi, rtol=0.0, atol=atol):
+        return 0.0
+    return float(abs(angular[2]))
 
 
-def is_region_observable(base_region, action, epsilon_obs, n_samples=64, rng=None):
+def is_region_observable(base_region, action, epsilon_obs):
     """Whether a response action measurably moves the region (E-A observability).
 
-    ``False`` when the action is a region-set symmetry (residual <= ``epsilon_obs``,
-    ``UNOBSERVABLE``); ``True`` otherwise. Wires the analytic E-A check into the
-    cell-status adjudication path rather than a hardcoded observable flag.
+    ``False`` when an analytic action certificate establishes a region-set symmetry
+    (residual <= ``epsilon_obs``, ``UNOBSERVABLE``); ``True`` otherwise. Unsupported
+    geometry raises rather than inventing a status from finite samples.
     """
-    return region_observability_residual(base_region, action, n_samples=n_samples, rng=rng) > epsilon_obs
+    epsilon_obs = float(epsilon_obs)
+    if not np.isfinite(epsilon_obs) or epsilon_obs < 0.0:
+        raise ValueError("epsilon_obs must be finite and non-negative")
+    return region_observability_residual(base_region, action) > epsilon_obs

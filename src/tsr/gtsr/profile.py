@@ -15,6 +15,7 @@ ManiSkill / HDF5 data.
 from __future__ import annotations
 
 from enum import Enum
+from types import MappingProxyType
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -213,20 +214,38 @@ class ResponseProfile:
     coefficient vector consumed by ``ResponseOperator`` (scope §2).
     """
 
+    __slots__ = (
+        "_theta",
+        "_n_basis",
+        "_phase_to_q",
+        "_alpha_max",
+        "_basis_width",
+        "_optimization",
+        "_frozen",
+    )
+
+    def __setattr__(self, name, value):
+        if getattr(self, "_frozen", False):
+            raise AttributeError("ResponseProfile is read-only")
+        object.__setattr__(self, name, value)
+
     def __init__(self, theta, phase_to_q, alpha_max=1.25, basis_width=0.065, *, optimization=None):
         theta = np.asarray(theta, dtype=np.float64)
         if theta.ndim != 2 or theta.shape[0] != 3:
             raise ValueError(f"theta must have shape (3, n_basis), got {theta.shape}")
-        self._theta = theta.copy()
+        # Store coefficients as immutable Python values rather than an ndarray:
+        # ``ndarray.setflags(write=True)`` can re-enable an array's own buffer.
+        self._theta = tuple(tuple(float(value) for value in row) for row in theta)
         self._n_basis = theta.shape[1]
-        self._phase_to_q = _normalize_phase_to_q(phase_to_q)
+        self._phase_to_q = MappingProxyType(_normalize_phase_to_q(phase_to_q))
         self._alpha_max = float(alpha_max)
         self._basis_width = float(basis_width)
-        self._optimization = dict(optimization) if optimization else {}
+        self._optimization = MappingProxyType(dict(optimization) if optimization else {})
+        self._frozen = True
 
     @property
     def theta(self):
-        return self._theta.copy()
+        return np.asarray(self._theta, dtype=np.float64).copy()
 
     @property
     def n_basis(self):
@@ -251,7 +270,7 @@ class ResponseProfile:
     def _alpha_from_g(self, g):
         g = np.asarray(g, dtype=np.float64)
         basis = rbf_basis(np.atleast_1d(g), self._n_basis, self._basis_width)
-        logits = basis @ self._theta.T
+        logits = basis @ np.asarray(self._theta, dtype=np.float64).T
         return self._alpha_max / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
 
     def alpha(self, phase_code, rho):
@@ -270,7 +289,7 @@ class ResponseProfile:
             "basis_width": self._basis_width,
             "n_basis": self._n_basis,
             "phase_to_q": {str(k): v for k, v in self._phase_to_q.items()},
-            "theta": self._theta.tolist(),
+            "theta": np.asarray(self._theta, dtype=np.float64).tolist(),
             "optimization": dict(self._optimization),
         }
 
@@ -434,6 +453,15 @@ class ProfileIdentifier:
                 raise ValueError("phase_codes must have shape (steps,)")
             if not np.issubdtype(phase_codes.dtype, np.integer):
                 raise ValueError("phase_codes must contain integer phase codes")
+            unknown_codes = set(phase_codes.tolist()).difference(phase_to_q)
+            if unknown_codes:
+                raise ValueError(f"phase_codes contain values outside the registered phase_to_q map: {unknown_codes}")
+            phase_indices = np.asarray([phase_to_q[int(code)] for code in phase_codes], dtype=np.float64)
+            phase_count = len(phase_to_q)
+            lower = phase_indices / phase_count
+            upper = (phase_indices + 1.0) / phase_count
+            if np.any(progress < lower - 1e-12) or np.any(progress > upper + 1e-12):
+                raise ValueError("progress is inconsistent with phase_codes and phase_to_q")
             self.phase_codes = phase_codes.astype(np.int64)
 
         basis = self._basis(progress)

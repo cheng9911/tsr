@@ -65,7 +65,7 @@ def test_A01_narrow_follow_ignore_is_observable():
     # The analytic observability check (exact canonical bounds, not sampled points)
     # reports the yaw response observable: the follow action carries poses out of the
     # narrow region, and the follow/ignore pair is strictly above the calibration floor.
-    observable = is_region_observable(base, op.action(relation, np.ones(6)), epsilon_obs, rng=rng)
+    observable = is_region_observable(base, op.action(relation, np.ones(6)), epsilon_obs)
     assert observable
     assert region_discrepancy(follow, ignore, n_samples=128, rng=rng) > epsilon_obs
 
@@ -92,10 +92,9 @@ def test_A02_wide_domain_symmetry_control_unobservable():
     # The analytic observability check is *exactly* zero for the region-set symmetry
     # (a sampled point-set discrepancy would return a positive value here), so the
     # yaw cell is UNOBSERVABLE — never IDENTIFIED.
-    rng = np.random.default_rng(0)
     epsilon_obs = calibrate_epsilon_obs([], epsilon_num=1e-3)
-    assert region_observability_residual(base, action, n_samples=128, rng=rng) == 0.0
-    assert not is_region_observable(base, action, epsilon_obs, rng=rng)
+    assert region_observability_residual(base, action) == 0.0
+    assert not is_region_observable(base, action, epsilon_obs)
 
     status = adjudicate_cell(excited=True, observable=False, fit_succeeded=True, meets_heldout_gate=True)
     assert status is CellStatus.UNOBSERVABLE
@@ -124,3 +123,16 @@ def test_A05_identical_region_discrepancy_is_zero():
     base = GTSR.canonical(Bw=NARROW_BW)
     rng = np.random.default_rng(0)
     assert region_discrepancy(base, base, n_samples=64, rng=rng) < 1e-12
+
+
+def test_A06_noninvariant_interval_is_not_lost_by_interior_sampling():
+    """A changed finite yaw interval must not abstain merely by missing its edge."""
+    op = ResponseOperator(np.eye(4), I6)
+    bw = np.zeros((6, 2))
+    bw[5] = [0.0, 1.0]
+    base = GTSR.canonical(Bw=bw)
+    action = op.action(se3_exp(np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.01])), np.ones(6))
+
+    # The previous sampled implementation returned False for this seed because all
+    # 64 samples happened to lie below the final 0.01-rad boundary band.
+    assert is_region_observable(base, action, epsilon_obs=1e-6)

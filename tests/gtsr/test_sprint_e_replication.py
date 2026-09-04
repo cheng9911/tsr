@@ -91,8 +91,8 @@ TASK_ERROR_ATOL = 0.5
 # yaw domain makes the pure-yaw action a region-set symmetry (unobservable).
 NARROW_BW = np.array(
     [
-        [-0.01, 0.01],
-        [-0.01, 0.01],
+        [0.0, 0.0],
+        [0.0, 0.0],
         [-0.01, 0.01],
         [-0.01, 0.01],
         [-0.01, 0.01],
@@ -121,7 +121,7 @@ def _epsilon_obs():
     return calibrate_epsilon_obs([], epsilon_num=1e-3)
 
 
-def _generator_observabilities(bw, rng):
+def _generator_observabilities(bw):
     """Per-generator E-A observability verdict (analytic, not a hardcoded flag).
 
     Each planar generator is probed with its pure response action on the given
@@ -133,8 +133,7 @@ def _generator_observabilities(bw, rng):
     base = GTSR.canonical(Bw=bw)
     epsilon_obs = _epsilon_obs()
     return [
-        is_region_observable(base, op.action(se3_exp(twist), np.ones(6)), epsilon_obs, rng=rng)
-        for twist in GENERATOR_TWISTS
+        is_region_observable(base, op.action(se3_exp(twist), np.ones(6)), epsilon_obs) for twist in GENERATOR_TWISTS
     ]
 
 
@@ -200,6 +199,11 @@ def test_E01_manifest_and_dataset_hashes():
         entry = status["datasets"][str(seed)]
         assert entry["complete_container"] is True
         assert sha256(Path(entry["path"])) == entry["sha256"]
+        # Loading is part of E-01: it fail-fast validates the registered 30/8
+        # split, mixed-context rank/uniqueness/signed coverage, and every isolated
+        # context amplitude rather than merely checking the container hash.
+        data = load_seed_dataset(Path(entry["path"]), BINS)
+        assert data.seed == seed
 
 
 def test_E02_progress_grid_matches_phase_mapping():
@@ -209,7 +213,7 @@ def test_E02_progress_grid_matches_phase_mapping():
     phase_progress = np.linspace(0.0, 1.0, BINS)
     expected = np.concatenate([(i + phase_progress) / 4 for i in range(4)])
     np.testing.assert_allclose(progress, expected)
-    np.testing.assert_array_equal(phase_codes, np.repeat(np.arange(4), BINS))
+    np.testing.assert_array_equal(phase_codes, np.repeat([3, 4, 5, 6], BINS))
 
 
 def test_E05_per_seed_gates_match_frozen_summary():
@@ -286,8 +290,7 @@ def test_E07_heldout_task_error_beats_scalar_and_cells_identified():
     criteria = experiment["success_criteria"]
     frozen = _frozen_seed_summary(root)
     identifier = ProfileIdentifier()
-    rng = np.random.default_rng(0)
-    observabilities = _generator_observabilities(NARROW_BW, rng)
+    observabilities = _generator_observabilities(NARROW_BW)
     assert observabilities == [True, True, True], "narrow-domain E-A check must report all generators observable"
 
     for seed in SEEDS:
@@ -301,7 +304,7 @@ def test_E07_heldout_task_error_beats_scalar_and_cells_identified():
             nominal_frame_yaw=data.nominal_frame_yaw,
         )
         prediction = identifier.predict(data.test_contexts)
-        yaw_weights = (data.phase_codes < 2).astype(np.float64)
+        yaw_weights = (data.phase_codes < 5).astype(np.float64)
 
         pdiag_task_error, _ = metric_errors(prediction, data.test_curves, yaw_weights=yaw_weights)
         scalar_prediction = _frame_weighted_predict(data.train_contexts, data.train_curves, data.test_contexts)
@@ -342,18 +345,17 @@ def test_E08_wide_domain_negative_control_abstains():
     op = ResponseOperator(np.eye(4), np.eye(6))
     base = GTSR.canonical(Bw=FULL_YAW_BW)
     yaw_action = op.action(se3_exp(GENERATOR_TWISTS[2]), np.ones(6))
-    rng = np.random.default_rng(0)
     epsilon_obs = _epsilon_obs()
 
     # Analytic region-set symmetry: the residual is exactly zero, so the wide-domain
     # yaw response is UNOBSERVABLE — never IDENTIFIED (scope §6 E-A, gate E-08).
-    assert region_observability_residual(base, yaw_action, n_samples=128, rng=rng) == 0.0
-    assert not is_region_observable(base, yaw_action, epsilon_obs, rng=rng)
+    assert region_observability_residual(base, yaw_action) == 0.0
+    assert not is_region_observable(base, yaw_action, epsilon_obs)
 
     # Derive every generator's verdict from the analytic check and wire it into the
     # data -> status path. The yaw generator abstains to UNOBSERVABLE; no manual
     # ``observable=False`` literal is involved.
-    observabilities = _generator_observabilities(FULL_YAW_BW, rng)
+    observabilities = _generator_observabilities(FULL_YAW_BW)
     assert observabilities[2] is False
     contexts = np.array(
         [

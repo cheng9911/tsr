@@ -29,7 +29,7 @@ from tsr.gtsr.profile import (
 def _progress_grid(bins):
     phase_progress = np.linspace(0.0, 1.0, bins)
     progress = np.concatenate([(i + phase_progress) / 4 for i in range(4)])
-    phase_codes = np.repeat(np.arange(4), bins)
+    phase_codes = np.repeat(np.arange(3, 7), bins)
     return progress, phase_codes
 
 
@@ -212,6 +212,22 @@ def test_P08_rank_deficient_and_unexcited_rejected():
         identifier.fit(one_sided, curves, progress, phase_codes, nominal_frame_xy=(0.0, 0.0))
 
 
+def test_P08b_phase_codes_must_match_the_registered_oracle_vocabulary():
+    identifier = ProfileIdentifier()
+    progress, phase_codes = _progress_grid(10)
+    contexts = _full_rank_contexts(30, np.random.default_rng(3))
+    curves = _response_curves(_nominal_curve(40), contexts, np.ones((40, 3)))
+
+    with pytest.raises(ValueError, match="registered phase_to_q"):
+        identifier.fit(
+            contexts,
+            curves,
+            progress,
+            phase_codes - 3,
+            nominal_frame_xy=(0.0, 0.0),
+        )
+
+
 def test_P09_excitation_and_cell_statuses_from_data():
     contexts = _full_rank_contexts(30, np.random.default_rng(2))
     assert excitation_mask(contexts).tolist() == [True, True, True]
@@ -247,3 +263,15 @@ def test_P10_response_profile_strictly_read_only():
         profile.alpha_max = 2.0
     with pytest.raises(AttributeError):
         profile.phase_to_q = {3: 0}
+
+    # Internal storage cannot be mutated or replaced through ordinary Python access.
+    with pytest.raises(TypeError):
+        profile._theta[0, 0] = 999.0
+    with pytest.raises(AttributeError):
+        profile._theta.setflags(write=True)
+    with pytest.raises(TypeError):
+        profile._phase_to_q[99] = 0
+    with pytest.raises(AttributeError):
+        profile._alpha_max = 2.0
+    with pytest.raises(AttributeError):
+        profile.new_attribute = "not allowed"
