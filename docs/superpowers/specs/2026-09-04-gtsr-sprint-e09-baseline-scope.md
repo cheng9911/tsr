@@ -1,6 +1,6 @@
 # G-TSR Sprint E — E-09 baseline comparison scope
 
-状态：`SCOPE-DRAFT`（2026-09-04）
+状态：`E09-LOCKED`（2026-09-07）
 
 本文件只关闭 Sprint E 的 E-09：在既有 planar oracle-phase 30/8、五 seed
 evidence 上完成公平 baseline matrix。它不新增 task、不开启 online phase/transfer，且不改变

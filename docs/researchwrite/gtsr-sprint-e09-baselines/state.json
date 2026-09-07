@@ -4,11 +4,17 @@
   "text_type": "research_plan",
   "language": "zh",
   "target_reader": "repository maintainers and experimental reviewers",
-  "current_round": 0,
-  "scores": [],
-  "technical_debts": [
-    "E-09 implementation needs scikit-learn as an explicit test extra for frozen Scalar GP and Generic RBF.",
-    "The full baseline matrix is planar evidence only and must not be labelled six-generator SE(3) identification."
+  "current_round": 1,
+  "scores": [
+    {
+      "round": 1,
+      "artifact": "docs/gtsr_e09_validation_results.md",
+      "status": "identification-locked"
+    }
   ],
-  "status": "foundation"
+  "technical_debts": [
+    "The full baseline matrix is planar evidence only and must not be labelled six-generator SE(3) identification.",
+    "Only five independent execution seeds are available; flexible-baseline contrasts remain descriptive."
+  ],
+  "status": "identification-locked"
 }

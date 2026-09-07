@@ -1,6 +1,6 @@
 # G-TSR Sprint E — Response Profile Identification 范围契约
 
-状态：`SCOPE-DRAFT`（2026-09-04）
+状态：`IDENTIFICATION-LOCKED`（2026-09-07）
 
 前置：Sprint D `ResponseOperator` 已在 `15af5c7` 交付。其职责冻结为
 
@@ -244,3 +244,15 @@ real-demonstration identifiability、全局 region observability 或 transfer。
 
 完成 E-A/E-B 并通过 E-01--E-10 后，才可将本文件升级为 `IDENTIFICATION-LOCKED`；随后分别 scope-lock
 6D profile replication、online phase observer 与 matched-relation transfer。
+
+### 2026-09-07 冻结记录
+
+- E-01--E-08：`tests/gtsr/test_sprint_e_replication.py` 与既有 profile/observability contracts；
+- E-09：`tests/gtsr/test_sprint_e09_baselines.py`，六方法 × 五 execution seeds，无 skip；
+- Source Data：`docs/source_data/gtsr_e09_results.json`，保存逐 condition errors/status/budget 与
+  structured profiles，并由 E-09 gate 反向校验；
+- E-10：全量 `pytest -q` 为 512 passed、1 expected xfail、1 个既有 SciPy RuntimeWarning；
+- 独立 final review：APPROVE，无 Critical/Important/Minor 遗留。
+
+该锁定只覆盖本文定义的 planar oracle-phase identification contract；后续 6D、online phase 与 transfer
+仍须分别 scope-lock，不因本状态自动解锁论文主张。

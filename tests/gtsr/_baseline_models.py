@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 
 from tsr.gtsr.profile import (
+    ProfileIdentifier,
     from_metric,
     matrix_pose2,
     pose2_matrix,
@@ -22,6 +23,18 @@ from tsr.gtsr.profile import (
     socket_frame,
     to_metric,
 )
+
+
+def _sklearn_components():
+    """Load the E-09-only learning dependency with an actionable failure."""
+    try:
+        from sklearn.gaussian_process import GaussianProcessRegressor
+        from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
+        from sklearn.linear_model import RidgeCV
+        from sklearn.model_selection import GroupKFold
+    except ImportError as error:  # pragma: no cover - integration suite skip-gates this extra.
+        raise ImportError("E-09 learning baselines require the 'test' extra (scikit-learn)") from error
+    return GaussianProcessRegressor, ConstantKernel, RBF, WhiteKernel, RidgeCV, GroupKFold
 
 
 def _curve(curve, name):
@@ -125,6 +138,116 @@ class FrameActionModel(FixedActionModel):
         return apply_actions(self.actions(contexts), self.nominal_curve)
 
 
+class PhaseScalarActionModel(FrameActionModel):
+    """Frozen phase-scalar GP profile, realized as ``P=w(zeta) I``.
+
+    The pointwise scalar and GP hyperparameters are the sister implementation's
+    frozen estimator. Unlike that source's direct affine predictor, E-09 realizes
+    the learned scalar through the common nominal-frame left action so the only
+    difference from Pdiag is scalar versus generator-wise selectivity.
+    """
+
+    name = "Phase-Scalar GP"
+    kernel_amplitude = 1.0
+    kernel_amplitude_bounds = (1e-2, 1e2)
+    length_scale = 0.12
+    length_scale_bounds = (0.015, 1.0)
+    noise_level = 1e-4
+    noise_level_bounds = (1e-8, 1e-1)
+    optimizer_restarts = 5
+    random_state = 20260820
+
+    def fit(self, contexts, curves, progress, phase_codes):
+        contexts = _contexts(contexts)
+        curves = np.asarray(curves, dtype=np.float64)
+        progress = np.asarray(progress, dtype=np.float64)
+        phase_codes = np.asarray(phase_codes)
+        expected = (len(contexts), len(self.nominal_curve), 3)
+        if curves.shape != expected or not np.all(np.isfinite(curves)):
+            raise ValueError(f"curves must be finite with shape {expected}")
+        if progress.shape != (len(self.nominal_curve),) or not np.all(np.isfinite(progress)):
+            raise ValueError("progress must be finite with shape (steps,)")
+        if phase_codes.shape != progress.shape or not np.issubdtype(phase_codes.dtype, np.integer):
+            raise ValueError("phase_codes must be integer-valued with shape (steps,)")
+
+        contexts_metric = to_metric(contexts)
+        curves_metric = to_metric(curves)
+        centered = contexts_metric - contexts_metric.mean(axis=0, keepdims=True)
+        denominator = np.sum(centered * centered)
+        if denominator <= 0.0:
+            raise ValueError("contexts do not excite the scalar response")
+        weights = np.empty(len(progress), dtype=np.float64)
+        for step in range(len(progress)):
+            response_centered = curves_metric[:, step] - curves_metric[:, step].mean(axis=0)
+            weights[step] = np.sum(centered * response_centered) / denominator
+
+        GaussianProcessRegressor, ConstantKernel, RBF, WhiteKernel, _, _ = _sklearn_components()
+        kernel = ConstantKernel(self.kernel_amplitude, self.kernel_amplitude_bounds) * RBF(
+            length_scale=self.length_scale,
+            length_scale_bounds=self.length_scale_bounds,
+        ) + WhiteKernel(noise_level=self.noise_level, noise_level_bounds=self.noise_level_bounds)
+        self.gp = GaussianProcessRegressor(
+            kernel=kernel,
+            normalize_y=True,
+            n_restarts_optimizer=self.optimizer_restarts,
+            random_state=self.random_state,
+        )
+        self.gp.fit(progress[:, None], weights)
+        self.weight = self.gp.predict(progress[:, None])
+        self.progress = progress.copy()
+        self.phase_codes = phase_codes.astype(np.int64, copy=True)
+        return self
+
+    def action(self, context, weight):
+        context = _contexts(np.asarray(context, dtype=np.float64).reshape(1, -1))[0]
+        relation = socket_frame(context, self.nominal_frame_xy, self.nominal_frame_yaw)
+        twist = se2_log(self.nominal_frame_inverse @ relation)
+        return self.nominal_frame @ se2_exp(float(weight) * twist) @ self.nominal_frame_inverse
+
+    def actions(self, contexts):
+        contexts = _contexts(contexts)
+        return np.asarray([[self.action(context, weight) for weight in self.weight] for context in contexts])
+
+    def predict(self, contexts):
+        return apply_actions(self.actions(contexts), self.nominal_curve)
+
+    def generator_profile(self):
+        return np.repeat(self.weight[:, None], 3, axis=1)
+
+
+class PDiagActionModel(FrameActionModel):
+    """Adapter for the frozen finite diagonal identifier on the common nominal."""
+
+    name = "G-TSR Pdiag finite"
+
+    def __init__(self, nominal_curve, nominal_frame_xy, nominal_frame_yaw=0.0, *, identifier=None):
+        super().__init__(nominal_curve, nominal_frame_xy, nominal_frame_yaw)
+        self.identifier = ProfileIdentifier() if identifier is None else identifier
+
+    def fit(self, contexts, curves, progress, phase_codes):
+        self.profile = self.identifier.fit(
+            contexts,
+            curves,
+            progress,
+            phase_codes,
+            nominal_frame_xy=self.nominal_frame_xy,
+            nominal_frame_yaw=self.nominal_frame_yaw,
+        )
+        self.diagonal = self.identifier.jacobian_diag()
+        self.fit_status = "ok" if self.profile.optimization["success"] else "fit_failed"
+        return self
+
+    def actions(self, contexts):
+        contexts = _contexts(contexts)
+        return np.asarray([[self.identifier.action(context, alpha) for alpha in self.diagonal] for context in contexts])
+
+    def predict(self, contexts):
+        return apply_actions(self.actions(contexts), self.nominal_curve)
+
+    def generator_profile(self):
+        return self.diagonal.copy()
+
+
 class FullOperatorModel:
     """Frozen sister dense affine 3x3 direct-update comparator (not a response law)."""
 
@@ -163,6 +286,85 @@ class FullOperatorModel:
         prediction = np.empty((len(contexts_metric), len(self.nominal_curve), 3), dtype=np.float64)
         for step in range(len(self.nominal_curve)):
             prediction[:, step] = self.intercept_metric[step] + contexts_metric @ self.operator_metric[step]
+        return from_metric(prediction)
+
+    def actions(self, contexts):
+        return nominal_relative_actions(self.predict(contexts), self.nominal_curve)
+
+
+class GenericConditionalRBFModel:
+    """Frozen phase-local RBF direct predictor with episode-grouped ridge CV."""
+
+    name = "Context Regression"
+    default_centers_per_phase = 10
+    default_width = 0.16
+    ridge_alphas = np.logspace(-10, 0, 16)
+
+    def __init__(self, nominal_curve, centers_per_phase=default_centers_per_phase, width=default_width):
+        self.nominal_curve = _curve(nominal_curve, "nominal_curve").copy()
+        self.centers_per_phase = int(centers_per_phase)
+        self.width = float(width)
+        if self.centers_per_phase <= 0 or not np.isfinite(self.width) or self.width <= 0.0:
+            raise ValueError("centers_per_phase and width must be positive")
+        self.context_scale_metric = np.array([0.012, 0.012, 0.03 * np.deg2rad(30.0)])
+
+    def _basis(self, progress, phase_codes):
+        progress = np.asarray(progress, dtype=np.float64)
+        phase_codes = np.asarray(phase_codes)
+        if progress.shape != phase_codes.shape or not np.issubdtype(phase_codes.dtype, np.integer):
+            raise ValueError("phase_codes must be integer-valued and match progress")
+        registered = np.unique(phase_codes)
+        if len(registered) != 4:
+            raise ValueError("Generic RBF requires exactly four registered phases")
+        phase_to_q = {int(code): q for q, code in enumerate(registered)}
+        phase_indices = np.asarray([phase_to_q[int(code)] for code in phase_codes])
+        local_progress = progress * 4.0 - phase_indices
+        centers = np.linspace(0.0, 1.0, self.centers_per_phase)
+        local_basis = np.exp(-0.5 * ((local_progress[:, None] - centers[None, :]) / self.width) ** 2)
+        local_basis /= local_basis.sum(axis=1, keepdims=True)
+        basis = np.zeros((len(progress), 4 * self.centers_per_phase), dtype=np.float64)
+        for row, phase_index in enumerate(phase_indices):
+            start = phase_index * self.centers_per_phase
+            basis[row, start : start + self.centers_per_phase] = local_basis[row]
+        return basis
+
+    def _design(self, contexts, basis):
+        contexts = _contexts(contexts)
+        contexts_normalized = to_metric(contexts) / self.context_scale_metric
+        repeated_basis = np.tile(basis, (len(contexts), 1))
+        repeated_context = np.repeat(contexts_normalized, len(basis), axis=0)
+        interactions = [repeated_basis * repeated_context[:, generator, None] for generator in range(3)]
+        return np.column_stack([repeated_basis, *interactions])
+
+    def fit(self, contexts, curves, progress, phase_codes):
+        contexts = _contexts(contexts)
+        curves = np.asarray(curves, dtype=np.float64)
+        self.progress = np.asarray(progress, dtype=np.float64)
+        if curves.shape != (len(contexts), len(self.progress), 3) or not np.all(np.isfinite(curves)):
+            raise ValueError("curves must be finite with shape (n, steps, 3)")
+        self.phase_codes = np.asarray(phase_codes)
+        self.basis = self._basis(self.progress, self.phase_codes)
+        design = self._design(contexts, self.basis)
+        outputs = to_metric(curves).reshape(-1, 3)
+        groups = np.repeat(np.arange(len(contexts)), len(self.progress))
+        _, _, _, _, RidgeCV, GroupKFold = _sklearn_components()
+        if len(contexts) < 5:
+            raise ValueError("Generic RBF grouped CV requires at least five training episodes")
+        self.cv_groups = groups.copy()
+        grouped_cv = list(GroupKFold(n_splits=5).split(design, outputs, groups))
+        self.model = RidgeCV(
+            alphas=self.ridge_alphas,
+            fit_intercept=False,
+            cv=grouped_cv,
+        ).fit(design, outputs)
+        self.alpha = float(self.model.alpha_)
+        return self
+
+    def predict(self, contexts):
+        contexts = _contexts(contexts)
+        prediction = self.model.predict(self._design(contexts, self.basis)).reshape(
+            len(contexts), len(self.progress), 3
+        )
         return from_metric(prediction)
 
     def actions(self, contexts):
