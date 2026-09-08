@@ -36,7 +36,7 @@ from tests.gtsr._maniskill_data_se3 import (
     progress_grid_se3,
     se3_rollouts_root,
 )
-from tsr.gtsr.profile6 import SelectivityMetrics6D, SelectivityStatus, SelectivityVerdict6D
+from tsr.gtsr.profile6 import SelectivityMetrics6D
 
 pytest.importorskip("h5py")
 threadpoolctl = pytest.importorskip("threadpoolctl")
@@ -184,16 +184,6 @@ def test_F04_frozen_pdiag_selectivity_headline():
     assert headline["rank"] == pytest.approx(float(frozen_rank["accuracy"]))
     assert headline["transition"] == pytest.approx(float(frozen_trans["accuracy"]))
     assert headline["rank"] == 1.0 and headline["transition"] == 1.0
-
-    # Two-layer verdict: yaw SELECTIVE; the other five IDENTIFIED + NON_SELECTIVE.
-    mixed = np.vstack([load_se3_rollout(se3_rollouts_root() / "keyed_seed_20260818.h5", BINS)["mixed_contexts"]])
-    verdict = SelectivityVerdict6D(headline)
-    identification = verdict.identify(
-        mixed, observable=np.ones(6, dtype=bool), fit_succeeded=True, meets_gate=np.ones(6, dtype=bool)
-    )
-    selectivity = verdict.selectivity(identification, fit_succeeded=np.ones(6, dtype=bool))
-    assert selectivity[5] is SelectivityStatus.SELECTIVE
-    assert all(s is SelectivityStatus.NON_SELECTIVE for s in selectivity[:5])
 
 
 @pytest.mark.slow

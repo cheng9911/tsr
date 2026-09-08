@@ -1,6 +1,6 @@
 # G-TSR Sprint F：6D 六生成元响应轮廓复现结果
 
-状态：`IDENTIFICATION-LOCKED`（2026-09-08）
+状态：`REPLICATION-LOCKED`（2026-09-08）
 
 实现基线：`d5d3d72`
 
@@ -18,7 +18,7 @@ formal region-level observability。
 - 统计单位：独立单位是 3 个 execution seeds；18 cells 仅是 seed 内重采样/敏感性
   计算单元，不解释为独立 `n=18`。
 - 实现：`ResponseProfile6D`、`ProfileIdentifier6D`、`SelectivityMetrics6D` 和
-  `SelectivityVerdict6D`；拟合成功与生成元选择性是两层正交 verdict。
+  `SelectivityVerdict6D`；API 将拟合/识别状态与生成元选择性分层。
 - 运行：36 个 Pdiag fit 使用进程级并行、每进程 BLAS 单线程与 manifest-pinned
   resumable cache。
 
@@ -43,8 +43,13 @@ formal region-level observability。
 | rank | 1.000 | 0.000 |
 | transition | 1.000 | 0.000 |
 
-Pdiag 满足 `S_yaw > 4·S_others_max`。非 yaw 五轴的最终状态是
-`IDENTIFIED + NON_SELECTIVE`，yaw 为 `IDENTIFIED + SELECTIVE`。
+Pdiag 满足 `S_yaw > 4·S_others_max`。36 个 fit 全部成功；yaw 的 selectivity verdict 为
+`SELECTIVE`，其余五轴为 `NON_SELECTIVE`。
+
+但是，F-04 在调用 `SelectivityVerdict6D.identify()` 时把 `observable` 和 `meets_gate` 设为常量
+true，没有从真实 held-out response error 推导六轴 adequacy。因此本记录不将六轴写成
+`CellStatus.IDENTIFIED`；当前硬证据是 **FIT_SUCCEEDED + selectivity verdict**。如果论文需要
+“六轴 response law 均已识别”，必须另加不使用训练轨迹的 per-generator adequacy gate。
 
 ## 实现与验证证据
 
@@ -58,13 +63,15 @@ Pdiag 满足 `S_yaw > 4·S_others_max`。非 yaw 五轴的最终状态是
 收口验证：
 
 - `pytest -q`：**535 passed, 1 xfailed**；`xfail` 为既有 seed-441 projection canary。
-- `ruff check`、`ruff format --check`、`git diff --check`：干净。
+- `.venv/bin/ruff check src/tsr/gtsr tests/gtsr`、`.venv/bin/ruff format --check src/tsr/gtsr tests/gtsr`
+  与 `git diff --check`：干净。这是 Sprint F 改动范围的检查，不宣称 repo-wide
+  `ruff format --check .` 通过。
 - 冻结几何内核、Sprint D `response.py` 与 Sprint E planar `profile.py` 未改变。
 
 ## 论文可用结论与边界
 
 本结果支持：在冻结的 6D SE(3) intervention distribution 和 oracle phase 下，有限对角
-response law 能从六个生成元中分离出 keyed relation 的 yaw-selective response，而共享
+response profile 拟合能从六个生成元中分离出 keyed relation 的 yaw-selective response，而共享
 Frame-weighted control 无法表达该 per-generator selectivity。
 
 本结果不支持 learned/online phase、target-side zero-refit transfer、任意多生成元选择性、物理

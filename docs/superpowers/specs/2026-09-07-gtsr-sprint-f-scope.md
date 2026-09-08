@@ -1,6 +1,6 @@
 # G-TSR Sprint F — 6D Six-Generator Response-Profile Replication 范围契约
 
-状态：`IDENTIFICATION-LOCKED`（2026-09-08）
+状态：`REPLICATION-LOCKED`（2026-09-08）
 
 前置：Sprint E 已 `IDENTIFICATION-LOCKED`（仅 planar oracle-phase `[du,dv,yaw]`）。Sprint D
 `ResponseOperator`（`15af5c7`）已是满秩 6D operator；Sprint E 的 `ProfileIdentifier` /
@@ -26,14 +26,15 @@ interventions 识别六维有限对角 profile
 本 Sprint 的唯一输出是：
 
 \[
-\boxed{\hat\Theta^{(6)},\quad \hat P_r^{(6)}(\zeta),\quad\text{identification + selectivity verdicts}.}
+\boxed{\hat\Theta^{(6)},\quad \hat P_r^{(6)}(\zeta),\quad\text{fit + selectivity verdicts}.}
 \]
 
 verdict 分两层（§7）：**identification**（能否正确拟合该 generator）与 **selectivity**（该
 generator 是否具有跨 arm 的选择性）。选择性判定不用被否决的 0.5 recovered-magnitude 阈值
 （见 §6.3），而是结构排序判据加预注册 transition floor `\tau=0.2`（§6）。除 yaw 外的五个
-generator 是 oracle always-on（`\alpha\approx1`）——它们应当被正确 **识别**（IDENTIFIED），但
-判定为 **NON_SELECTIVE**（无跨 arm gap），不是“未识别的 task law”。
+generator 是 oracle always-on（`\alpha\approx1`）——它们应当拟合成功并判定为
+**NON_SELECTIVE**（无跨 arm gap）。要进一步称为 `IDENTIFIED`，还需真实 held-out
+adequacy 证据（见 §7）。
 
 **不做：** learned phase、matched-relation transfer、online phase observer、planner/IK 成功率、
 6D 数据收集（manifest 与 rollouts 均已冻结）、对 `ResponseOperator` / planar `ProfileIdentifier`
@@ -239,7 +240,10 @@ purity=0.7289。故选择性只用 clearance drop（M2/M3）与 keyed-vs-circula
    transition=1 才判 `SELECTIVE`；其余五轴 oracle always-on，`S_j` 低于门 → `NON_SELECTIVE`
    （它们被正确识别，只是无跨 arm 选择性）；fit 失败或数据不足 → `ABSTAIN`。
 
-非 yaw 生成元的最终状态是 **IDENTIFIED + NON_SELECTIVE**，不是“未识别的 task law”。
+本 Sprint 实际硬门证明了 36 个 optimizer fit 全部成功与 yaw/non-yaw 的 selectivity
+区分，但没有为六个 generator 分别建立 real held-out adequacy gate。因此非 yaw 五轴在本
+Sprint 的可证状态是 **FIT_SUCCEEDED + NON_SELECTIVE**；正式 `CellStatus.IDENTIFIED` 留待独立
+held-out adequacy 证据，不由常量 `observable/meets_gate=True` 代替。
 
 ## 8. 新模块与接口
 
@@ -262,11 +266,11 @@ purity=0.7289。故选择性只用 clearance drop（M2/M3）与 keyed-vs-circula
 
 Sprint F 通过只允许宣称：在冻结 SE(3) intervention distribution、oracle phase 与 frozen
 Pdiag-finite parameterization 内，yaw 在 **six generators 中是唯一 selective generator**（其余五轴
-IDENTIFIED + NON_SELECTIVE），negative control（Frame-weighted）如预测般失败。它**不**允许宣称：
+FIT_SUCCEEDED + NON_SELECTIVE），negative control（Frame-weighted）如预测般失败。它**不**允许宣称：
 learned phase、matched-relation transfer、formal region-level observability、6D few-shot
 （N=8/15）、或“任意多个 generator 可同时被选择性识别”的泛化（后者属于 multigen 实验）。
 
-F-01–F-06 已在实现基线 `d5d3d72` 通过，本文件升级为
-`IDENTIFICATION-LOCKED`；完整验收事实见 `docs/gtsr_sprint_f_validation_results.md`。后续分别
+F-01–F-06 已在实现基线 `d5d3d72` 通过，本文件以 `REPLICATION-LOCKED` 冻结；
+完整验收事实和 identification-adequacy 边界见 `docs/gtsr_sprint_f_validation_results.md`。后续分别
 scope-lock learned phase、matched-relation transfer 与 6D few-shot ablation，不得回写或放宽本 Sprint
-的 oracle-phase 识别合同。
+的 oracle-phase 拟合/选择性合同。

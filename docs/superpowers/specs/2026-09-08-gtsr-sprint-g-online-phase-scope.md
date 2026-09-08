@@ -2,8 +2,8 @@
 
 状态：`SCOPE-DRAFT`（2026-09-08）
 
-前置：Sprint F 已 `IDENTIFICATION-LOCKED`，只在 oracle phase 下冻结 6D response-profile
-identification。本 Sprint 只解除这一个 oracle 假设：从运行时可观测、因果前缀信号中输出
+前置：Sprint F 已 `REPLICATION-LOCKED`，在 oracle phase 下冻结 6D response-profile 拟合与
+selectivity 复现。本 Sprint 只解除这一个 oracle 假设：从运行时可观测、因果前缀信号中输出
 与 frozen profile 兼容的 phase/progress 估计。它不修改 G-TSR 几何内核、`ResponseOperator`、
 `ProfileIdentifier6D` 或 Sprint F 的 oracle-profile 参数。
 
@@ -77,7 +77,7 @@ event 独立由真值几何事件定义，用于对齐评分；不能用 observe
 - end-effector pose：`tcp_pose_t`；
 - task relation poses：`peg_pose_t`、`socket_pose_t`，并在 task-local frame 中构造
   `T_socket^{-1}T_peg`；
-- 已执行的当前/历史 action（可选）；
+- 上一控制周期已经执行的 action `a_{t-1}` 及更早历史（可选）；
 - 实际系统可测的 force/torque 通道；当前冻结数据只有 `contact_force`，因此使用时必须
   单独做“含力/不含力”消融。
 
@@ -107,12 +107,19 @@ class PhaseEstimate:
 
 class OnlinePhaseObserver:
     def reset(self) -> None: ...
-    def update(self, observation: PhaseObservation) -> PhaseEstimate: ...
+    def update(
+        self,
+        observation_t: PhaseObservation,
+        previous_action: np.ndarray | None,
+    ) -> PhaseEstimate: ...
 ```
 
 契约：
 
-- `update(o_t)` 的输出只取决于 `o_0,...,o_t` 和已冻结模型参数；
+- 时间轴固定为：执行 `a_{t-1}` 后获得 state observation `o_t`，再调用
+  `update(o_t, a_{t-1})` 输出 `\hat\zeta_t`，该输出只能影响随后的 `a_t`；
+- `update(o_t, a_{t-1})` 的输出只取决于 `o_0,...,o_t`、`a_0,...,a_{t-1}` 和已冻结
+  模型参数；禁止输入与 `o_{t+1}` 对齐的 `a_t`；
 - `normalized_progress∈[0,1]`，有效输出须满足 `g_t≥g_{t-1}`；
 - 默认 phase 不回退；若任务允许回退，必须在新 scope 中改变状态机；
 - 低置信时输出 `abstained=True`，下游保持上一个已确认 phase/progress，不越级切换；
@@ -133,7 +140,23 @@ F-01，不重新选 episode。
 - 三个折各自保留一个完整 seed，最终以 seed 为独立单位报告 `n=3`；
 - keyed/circular_honest 均必须报告，不得只选更容易的 arm。
 
-### 6.2 Supporting evidence：planar non-oracle progress
+### 6.2 Fold-specific frozen response artifacts
+
+Sprint F 生成的 36 个 cell profile 是复现计算单元，不是唯一的部署 artifact。Sprint G
+为每个 outer LOSO fold 建立一个明确的 training-only response artifact：
+
+- 只使用该 fold 的两个训练 execution seeds，按 Sprint F 冻结的 N=30、Pdiag-finite、
+  optimizer 和单位合同拟合；
+- keyed/circular_honest 分开保存，并固定 train-seed IDs、subset IDs、数据 hashes、
+  parameters 和 artifact SHA-256；
+- 在解封该 fold 的 held-out seed 前完成拟合并只读冻结；
+- G-05 中“不重拟合”的精确含义是：评估 held-out seed 时不使用其轨迹、标签或误差
+  更新 observer 或 response artifact。
+
+这些 fold-specific artifacts 还需要真实 held-out adequacy 检查；Sprint F 中由常量 true 生成的
+`CellStatus.IDENTIFIED` 不能作为该检查的证据。
+
+### 6.3 Supporting evidence：planar non-oracle progress
 
 sister repository 已有五 seed 的 non-oracle progress 实验，用作 scope 先验和基线边界：
 
@@ -178,6 +201,14 @@ arc-length `5.500`，keypoint `8.894`，DTW-position `3.188`。DTW-position 使�
 - backward-transition count、skipped-phase count、abstention coverage 和 selective risk；
 - per-arm/per-seed 结果，不只报告 pooled-frame 平均。
 
+对 abstention 的计分固定为：
+
+- phase macro-F1/balanced accuracy 中，abstained frame 按错误预测计，不从分母删除；
+- progress MAE 和所有下游指标使用真正部署语义：abstain 时持有上一个已确认估计，
+  因此每一帧都进入误差；
+- selective risk 可在 non-abstained frames 上条件报告，但必须与 coverage 成对展示，
+  不作为唯一通过门。
+
 ### 8.2 下游保真指标
 
 保持 frozen response profile 参数不变，只把 `g_t` 从 oracle 换成 `g_hat_t`：
@@ -193,18 +224,22 @@ arc-length `5.500`，keypoint `8.894`，DTW-position `3.188`。DTW-position 使�
 ## 9. 硬门
 
 - **G-00 证据入场门**：实施计划前冻结 primary observer 的 feature manifest、标签映射、
-  calibration 策略、所有数值阈值和 sister evidence hashes；未冻结数值不得从 final test set
-  反向选取。
+  算法/超参数、fold-specific response-artifact 生成规则、外部 acceptance thresholds 和 sister
+  evidence hashes。外部阈值只能来自预先冻结的 planar evidence 或独立 development data，不得
+  查看任一 6D outer-test seed 后调整。
 - **G-01 无泄漏/因果性**：禁止字段扫描全通过；对任意两条共享前缀，输出在该前缀
   的每个时刻逐位一致；改变未来帧不得改变当前输出。
 - **G-02 状态机合同**：所有非 abstain 输出均满足 phase/range/finite 合同；
   `g_hat_t` 单调，无 backward 和 skipped transition；`reset()` 不携带上一 episode 状态。
-- **G-03 分割与复现**：LOSO 三折的 preprocessing/model/calibration 仅用训练 seeds；相同 seed
-  与配置重跑逐 episode 输出一致；帧级随机 split 必须由测试显式拒绝。
+- **G-03 分割与复现**：LOSO 三折的 preprocessing/model/calibration 仅用训练 seeds；
+  confidence calibration 使用预先固定的 fold-local 规则（在两个训练 seed 之间做 inner
+  leave-one-seed-out，然后用全部两个训练 seed 重拟合）；相同 seed 与配置重跑逐 episode
+  输出一致；帧级随机 split 必须由测试显式拒绝。
 - **G-04 observer 有效性**：primary observer 的预注册 phase/progress/latency/abstention 阈值全部
   通过，且在每个独立 seed 上的 physical-timeline task error 均优于 normalized-time
   baseline。具体阈值由 G-00 冻结，不在 implementation plan 中改动。
-- **G-05 下游保真**：不重拟合 frozen profile；learned-phase 的 response/task error 相对
+- **G-05 下游保真**：评估时不重拟合 §6.2 的 fold-specific frozen profile；learned-phase 的
+  response/task error 相对
   oracle-phase 的 paired degradation 不超过 G-00 预注册预算，并保持 key-clear 前后 yaw
   action 的正确切换方向。
 - **G-06 失败可见**：低置信、越分布或观测缺失时必须 abstain；禁止静默回退到
@@ -213,8 +248,9 @@ arc-length `5.500`，keypoint `8.894`，DTW-position `3.188`。DTW-position 使�
   内核全部无回退；Ruff 与 `git diff --check` 干净。
 
 G-04/G-05 暂不写入未经证据支持的绝对数字。这不是放宽验收：G-00 要求在编写
-implementation plan 之前，使用开发折/已冻结 sister evidence 预注册数字，然后才封存
-test fold。
+implementation plan 之前，只使用冻结 planar evidence 或额外独立 development data 预注册数字。
+当前三个 6D seeds 都属于 outer-test universe，不存在可以先观看的“development fold”；它们只能
+用于 fold-local 训练/校准和对应 outer fold 的一次最终评估。
 
 ## 10. 论文主张合同
 
