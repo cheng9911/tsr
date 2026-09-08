@@ -13,6 +13,7 @@ from tests.gtsr._baseline_models_se3 import (
     SE3FrameWeightedModel,
     SE3FullOperatorModel,
 )
+from tsr.gtsr.profile import CellStatus
 from tsr.gtsr.profile6 import (
     SE3_METRIC_SCALE,
     ProfileIdentifier6D,
@@ -258,15 +259,32 @@ def test_selectivity_metrics_per_cell_and_cross_arm():
 def test_selectivity_metrics_aggregate_matches_frozen_semantics():
     phase_codes = np.repeat(np.arange(4), 25)
     metrics = SelectivityMetrics6D(phase_codes)
-    keyed_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3)) for _ in range(18)]
-    circular_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1)) for _ in range(18)]
+    keyed_cells = []
+    circular_cells = []
+    for r in range(18):
+        # Fixed 0.8 yaw gap; the five "other" generators get a per-cell
+        # varying gap so mean(per-cell ratio) != ratio of means.
+        keyed_cells.append(
+            metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3,
+                                             other_pre=0.5 + 0.02 * r, other_post=0.5 + 0.02 * r))
+        )
+        circular_cells.append(
+            metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1,
+                                             other_pre=0.3, other_post=0.3))
+        )
     headline = metrics.aggregate(keyed_cells, circular_cells)
-    # S_yaw = mean_r |0.9-0.1| = 0.8; others = 0 -> purity = 1.0; rank/transition = 1.0.
-    assert headline["S_yaw"] == pytest.approx(0.8)
-    assert headline["S_others_max"] == pytest.approx(0.0)
-    assert headline["purity"] == pytest.approx(1.0)
+
+    S_yaw = 0.8
+    # S_other,r = |(0.5+0.02r) - 0.3| = 0.2 + 0.02r for each of 5 generators.
+    purity_expected = float(np.mean([S_yaw / (S_yaw + 5 * (0.2 + 0.02 * r)) for r in range(18)]))
+    ratio_of_means = float((18 * S_yaw) / sum(S_yaw + 5 * (0.2 + 0.02 * r) for r in range(18)))
+    assert headline["S_yaw"] == pytest.approx(S_yaw)
+    assert headline["S_others_max"] == pytest.approx(float(np.mean([0.2 + 0.02 * r for r in range(18)])))
+    assert headline["purity"] == pytest.approx(purity_expected)
     assert headline["rank"] == pytest.approx(1.0)
     assert headline["transition"] == pytest.approx(1.0)
+    # The forbidden ratio-of-means convention must NOT be what aggregate computed.
+    assert abs(headline["purity"] - ratio_of_means) > 1e-6
 
 
 def test_selectivity_verdict_two_layer():
@@ -284,3 +302,15 @@ def test_selectivity_verdict_two_layer():
     selectivity = verdict.selectivity(identification, fit_succeeded=np.ones(6, dtype=bool))
     assert selectivity[5] is SelectivityStatus.SELECTIVE
     assert all(s is SelectivityStatus.NON_SELECTIVE for s in selectivity[:5])
+
+
+def test_selectivity_verdict_abstain_on_data_insufficient():
+    phase_codes = np.repeat(np.arange(4), 25)
+    metrics = SelectivityMetrics6D(phase_codes)
+    keyed_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3)) for _ in range(18)]
+    circular_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1)) for _ in range(18)]
+    headline = metrics.aggregate(keyed_cells, circular_cells)
+    verdict = SelectivityVerdict6D(headline)
+    identification = [CellStatus.UNOBSERVABLE] * 6
+    selectivity = verdict.selectivity(identification, fit_succeeded=np.ones(6, dtype=bool))
+    assert all(status is SelectivityStatus.ABSTAIN for status in selectivity)

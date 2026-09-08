@@ -20,7 +20,7 @@ from enum import Enum
 import numpy as np
 from scipy.optimize import least_squares
 
-from .profile import adjudicate_cell, rbf_basis
+from .profile import CellStatus, adjudicate_cell, rbf_basis
 
 SE3_DIM = 6
 # 3 translations in metres + 3 rotations at 0.03 m/rad (same axial scale as SE(2)).
@@ -658,8 +658,8 @@ class SelectivityVerdict6D:
             and headline["transition"] == 1.0
         )
         statuses = []
-        for j, (_, ok) in enumerate(zip(identification, np.broadcast_to(np.asarray(fit_succeeded), (6,)))):
-            if not bool(ok):
+        for j, (cell_status, ok) in enumerate(zip(identification, np.broadcast_to(np.asarray(fit_succeeded), (6,)))):
+            if not bool(ok) or cell_status in (CellStatus.UNOBSERVABLE, CellStatus.UNEXCITED):
                 statuses.append(SelectivityStatus.ABSTAIN)
             elif j == self.YAW_INDEX:
                 statuses.append(SelectivityStatus.SELECTIVE if yaw_selective else SelectivityStatus.NON_SELECTIVE)
