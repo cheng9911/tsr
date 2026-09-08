@@ -7,6 +7,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from tests.gtsr._baseline_models_se3 import (
+    SE3DiagonalOperatorModel,
+    SE3FrameWeightedModel,
+    SE3FullOperatorModel,
+)
 from tsr.gtsr.profile6 import (
     SE3_METRIC_SCALE,
     ProfileIdentifier6D,
@@ -205,3 +210,19 @@ def test_F03_planted_recovery():
             recovered = identifier.jacobian_diag()[q * 25 + int(round(rho * 24))]
             target = alpha_star(g)
             assert np.max(np.abs(recovered - target)) <= 5e-3
+
+
+def test_baselines_jacobian_diag_shapes_and_frame_weighted_shared_weight():
+    contexts, curves, progress, phase_codes, _, _ = _planted_recovery_data()
+    for model in (
+        SE3DiagonalOperatorModel(),
+        SE3FrameWeightedModel(),
+        SE3FullOperatorModel(),
+    ):
+        model.fit(contexts, curves, progress, phase_codes)
+        assert model.jacobian_diag().shape == (100, 6)
+    # Frame-weighted collapses every generator to one shared scalar w(s).
+    fw = SE3FrameWeightedModel().fit(contexts, curves, progress, phase_codes)
+    diagonal = fw.jacobian_diag()
+    for generator in range(6):
+        np.testing.assert_allclose(diagonal[:, generator], fw.weight, atol=1e-12)
