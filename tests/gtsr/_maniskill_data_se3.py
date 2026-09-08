@@ -177,9 +177,7 @@ def load_se3_rollout(path, bins):
             if usable(data_file[key]) and complete(data_file[key])
         }
         mixed_cond = {
-            cid: key
-            for cid, key in usable_groups.items()
-            if str(data_file[key].attrs["generator"]) == "mixed"
+            cid: key for cid, key in usable_groups.items() if str(data_file[key].attrs["generator"]) == "mixed"
         }
         isolated_cond = {
             cid: key
@@ -187,9 +185,7 @@ def load_se3_rollout(path, bins):
             if str(data_file[key].attrs["generator"]) in {"du", "dv", "dw", "roll", "pitch", "yaw"}
         }
         baseline_cond = {
-            cid: key
-            for cid, key in usable_groups.items()
-            if str(data_file[key].attrs["generator"]) == "baseline"
+            cid: key for cid, key in usable_groups.items() if str(data_file[key].attrs["generator"]) == "baseline"
         }
         mixed_cids = sorted(mixed_cond)
         mixed_keys = [mixed_cond[cid] for cid in mixed_cids]

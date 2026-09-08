@@ -39,9 +39,7 @@ from tsr.gtsr.response import ResponseOperator
 
 
 def test_metric_scale_frozen():
-    np.testing.assert_array_equal(
-        SE3_METRIC_SCALE, np.array([1.0, 1.0, 1.0, 0.03, 0.03, 0.03])
-    )
+    np.testing.assert_array_equal(SE3_METRIC_SCALE, np.array([1.0, 1.0, 1.0, 0.03, 0.03, 0.03]))
 
 
 def test_so3_exp_log_roundtrip():
@@ -84,37 +82,29 @@ def test_pose6_euler_convention_yaw_only():
     # A pure yaw rotation must be Rx(0) Ry(0) Rz(yaw) = Rz(yaw).
     yaw = 0.3
     R = matrix_from_euler(0.0, 0.0, yaw)
-    np.testing.assert_allclose(R, np.array(
-        [[np.cos(yaw), -np.sin(yaw), 0.0],
-         [np.sin(yaw), np.cos(yaw), 0.0],
-         [0.0, 0.0, 1.0]]
-    ), atol=1e-12)
+    np.testing.assert_allclose(
+        R, np.array([[np.cos(yaw), -np.sin(yaw), 0.0], [np.sin(yaw), np.cos(yaw), 0.0], [0.0, 0.0, 1.0]]), atol=1e-12
+    )
 
 
 def test_pose6_euler_roundtrip():
     rng = np.random.default_rng(4)
     for _ in range(10):
         rpy = rng.uniform(-0.5, 0.5, size=3)
-        np.testing.assert_allclose(
-            euler_from_matrix(matrix_from_euler(*rpy)), rpy, atol=1e-10
-        )
+        np.testing.assert_allclose(euler_from_matrix(matrix_from_euler(*rpy)), rpy, atol=1e-10)
 
 
 def test_pose6_se3_roundtrip():
     rng = np.random.default_rng(5)
     for _ in range(10):
         pose6 = rng.uniform(-0.5, 0.5, size=6)
-        np.testing.assert_allclose(
-            pose6_from_se3(se3_from_pose6(pose6)), pose6, atol=1e-10
-        )
+        np.testing.assert_allclose(pose6_from_se3(se3_from_pose6(pose6)), pose6, atol=1e-10)
 
 
 def test_pose6_se3_batched_roundtrip():
     rng = np.random.default_rng(6)
     pose6 = rng.uniform(-0.5, 0.5, size=(7, 6))
-    np.testing.assert_allclose(
-        pose6_from_se3_batched(se3_from_pose6_batched(pose6)), pose6, atol=1e-10
-    )
+    np.testing.assert_allclose(pose6_from_se3_batched(se3_from_pose6_batched(pose6)), pose6, atol=1e-10)
 
 
 def test_matrix_from_euler_batched_matches_scalar():
@@ -122,9 +112,7 @@ def test_matrix_from_euler_batched_matches_scalar():
     rpy = rng.uniform(-0.5, 0.5, size=(6, 3))
     batched = matrix_from_euler_batched(rpy)
     for i in range(6):
-        np.testing.assert_allclose(
-            batched[i], matrix_from_euler(*rpy[i]), atol=1e-12
-        )
+        np.testing.assert_allclose(batched[i], matrix_from_euler(*rpy[i]), atol=1e-12)
 
 
 def test_socket_frame6():
@@ -202,9 +190,7 @@ def _planted_recovery_data():
 def test_F03_planted_recovery():
     contexts, curves, progress, phase_codes, alpha_star, _ = _planted_recovery_data()
     identifier = ProfileIdentifier6D()
-    profile = identifier.fit(
-        contexts, curves, progress, phase_codes, nominal_frame_pose=np.zeros(6)
-    )
+    profile = identifier.fit(contexts, curves, progress, phase_codes, nominal_frame_pose=np.zeros(6))
     assert isinstance(profile, ResponseProfile6D)
     assert profile.optimization["success"]
     assert identifier.jacobian_diag().shape == (100, 6)
@@ -265,12 +251,14 @@ def test_selectivity_metrics_aggregate_matches_frozen_semantics():
         # Fixed 0.8 yaw gap; the five "other" generators get a per-cell
         # varying gap so mean(per-cell ratio) != ratio of means.
         keyed_cells.append(
-            metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3,
-                                             other_pre=0.5 + 0.02 * r, other_post=0.5 + 0.02 * r))
+            metrics.per_cell(
+                _synthetic_cell(
+                    phase_codes, yaw_pre=0.9, yaw_post=0.3, other_pre=0.5 + 0.02 * r, other_post=0.5 + 0.02 * r
+                )
+            )
         )
         circular_cells.append(
-            metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1,
-                                             other_pre=0.3, other_post=0.3))
+            metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1, other_pre=0.3, other_post=0.3))
         )
     headline = metrics.aggregate(keyed_cells, circular_cells)
 

@@ -55,23 +55,15 @@ def so3_exp(w):
     if theta < 1e-12:
         return np.eye(3) + _skew(w)
     W = _skew(w)
-    return (
-        np.eye(3)
-        + (np.sin(theta) / theta) * W
-        + ((1.0 - np.cos(theta)) / (theta * theta)) * (W @ W)
-    )
+    return np.eye(3) + (np.sin(theta) / theta) * W + ((1.0 - np.cos(theta)) / (theta * theta)) * (W @ W)
 
 
 def so3_log(R):
     R = np.asarray(R, dtype=np.float64)
     theta = float(np.arccos(np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0)))
     if theta < 1e-12:
-        return 0.5 * np.array(
-            [R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]
-        )
-    return (theta / (2.0 * np.sin(theta))) * np.array(
-        [R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]
-    )
+        return 0.5 * np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
+    return (theta / (2.0 * np.sin(theta))) * np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
 
 
 def se3_exp(xi):
@@ -84,11 +76,7 @@ def se3_exp(xi):
         V = np.eye(3) + 0.5 * _skew(w)
     else:
         W = _skew(w)
-        V = (
-            np.eye(3)
-            + ((1.0 - np.cos(theta)) / (theta * theta)) * W
-            + ((theta - np.sin(theta)) / (theta ** 3)) * (W @ W)
-        )
+        V = np.eye(3) + ((1.0 - np.cos(theta)) / (theta * theta)) * W + ((theta - np.sin(theta)) / (theta**3)) * (W @ W)
     T = np.eye(4)
     T[:3, :3] = R
     T[:3, 3] = V @ v
@@ -108,9 +96,7 @@ def se3_log(T):
         Vinv = (
             np.eye(3)
             - 0.5 * W
-            + (1.0 / (theta * theta))
-            * (1.0 - (theta * np.sin(theta)) / (2.0 * (1.0 - np.cos(theta))))
-            * (W @ W)
+            + (1.0 / (theta * theta)) * (1.0 - (theta * np.sin(theta)) / (2.0 * (1.0 - np.cos(theta)))) * (W @ W)
         )
     v = Vinv @ t
     return np.concatenate([v, w])
@@ -136,8 +122,8 @@ def se3_exp_batched(twists):
     W2 = np.einsum("...ij,...jk->...ik", W, W)
 
     a = np.where(small, 1.0, np.sin(theta_safe) / theta_safe)
-    b = np.where(small, 0.5, (1.0 - np.cos(theta_safe)) / (theta_safe ** 2))
-    c = np.where(small, 1.0 / 6.0, (theta_safe - np.sin(theta_safe)) / (theta_safe ** 3))
+    b = np.where(small, 0.5, (1.0 - np.cos(theta_safe)) / (theta_safe**2))
+    c = np.where(small, 1.0 / 6.0, (theta_safe - np.sin(theta_safe)) / (theta_safe**3))
 
     eye = np.zeros(w.shape[:-1] + (3, 3), dtype=np.float64)
     eye[..., 0, 0] = eye[..., 1, 1] = eye[..., 2, 2] = 1.0
@@ -393,9 +379,7 @@ class ProfileIdentifier6D:
     def _predict_with(self, contexts, nominal_curve, alpha):
         contexts = np.asarray(contexts, dtype=np.float64)
         actions = self._local_actions(contexts, alpha)
-        local_nominal = self.nominal_frame_inverse @ se3_from_pose6_batched(
-            np.asarray(nominal_curve, dtype=np.float64)
-        )
+        local_nominal = self.nominal_frame_inverse @ se3_from_pose6_batched(np.asarray(nominal_curve, dtype=np.float64))
         pred_local = np.einsum("csij,sjk->csik", actions, local_nominal)
         pred_world = np.einsum("ij,csjk->csik", self.nominal_frame, pred_local)
         return pose6_from_se3_batched(pred_world)
@@ -404,9 +388,7 @@ class ProfileIdentifier6D:
         contexts = np.asarray(contexts, dtype=np.float64)
         curves = np.asarray(curves, dtype=np.float64)
         actions = self._local_actions(contexts, alpha)
-        curves_T = se3_from_pose6_batched(curves.reshape(-1, 6)).reshape(
-            len(contexts), curves.shape[1], 4, 4
-        )
+        curves_T = se3_from_pose6_batched(curves.reshape(-1, 6)).reshape(len(contexts), curves.shape[1], 4, 4)
         obs_local = np.einsum("ij,csjk->csik", self.nominal_frame_inverse, curves_T)
         actions_inv = se3_inverse_batched(actions)
         implied_local = np.einsum("csij,csjk->csik", actions_inv, obs_local)
@@ -416,9 +398,7 @@ class ProfileIdentifier6D:
         nominal[:, :3] = implied[:, :, :3].mean(axis=0)
         for generator in range(3):
             angle = implied[:, :, 3 + generator]
-            nominal[:, 3 + generator] = np.arctan2(
-                np.sin(angle).mean(axis=0), np.cos(angle).mean(axis=0)
-            )
+            nominal[:, 3 + generator] = np.arctan2(np.sin(angle).mean(axis=0), np.cos(angle).mean(axis=0))
         return nominal
 
     def _initial_parameters(self, pointwise_diagonal, basis):
@@ -554,9 +534,9 @@ def excitation_mask6(contexts, *, tol=1e-12):
 class CellSelectivity:
     """Per-cell selectivity quantities for one fitted profile (keyed or circular)."""
 
-    alpha_pre: np.ndarray      # (6,) mean alpha over q<2
-    alpha_post: np.ndarray     # (6,) mean alpha over q>=2
-    delta: np.ndarray          # (6,) alpha_pre - alpha_post
+    alpha_pre: np.ndarray  # (6,) mean alpha over q<2
+    alpha_post: np.ndarray  # (6,) mean alpha over q>=2
+    delta: np.ndarray  # (6,) alpha_pre - alpha_post
     delta_yaw: float
     delta_others_max: float
     rank1_yaw: bool

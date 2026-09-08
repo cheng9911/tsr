@@ -38,11 +38,7 @@ BINS = 25
 # the authoritative integrity gate). Fold the manifest pins into the cache
 # directory so re-pinning the codebase to a new dataset version invalidates
 # stale cells instead of silently returning them.
-_CACHE_TAG = (
-    f"{SE3_CONTEXT_MANIFEST_SHA256[:8]}_"
-    f"{SE3_EXPERIMENT_SHA256[:8]}_"
-    f"{SE3_SUBSET_MANIFEST_SHA256[:8]}"
-)
+_CACHE_TAG = f"{SE3_CONTEXT_MANIFEST_SHA256[:8]}_{SE3_EXPERIMENT_SHA256[:8]}_{SE3_SUBSET_MANIFEST_SHA256[:8]}"
 
 # Module globals populated before forking (fork copies them into each worker).
 _DATASETS = None
@@ -74,9 +70,7 @@ def _fit_cell(job):
         with h5py.File(se3_rollouts_root() / f"{task}_seed_{seed}.h5", "r") as data_file:
             nominal_frame_pose = nominal_frame_se3(data_file, keys, contexts)
         identifier = ProfileIdentifier6D()
-        profile = identifier.fit(
-            contexts, curves, _PROGRESS, _PHASE_CODES, nominal_frame_pose=nominal_frame_pose
-        )
+        profile = identifier.fit(contexts, curves, _PROGRESS, _PHASE_CODES, nominal_frame_pose=nominal_frame_pose)
         return task, seed, subset["subset_id"], identifier.jacobian_diag(), bool(profile.optimization["success"])
 
 
@@ -86,9 +80,7 @@ def fit_all_pdiag_cells(root, processes=None, cache_dir=None):
 
     subsets = n30_subsets(load_se3_subsets(root))
     cache_dir = Path(
-        cache_dir
-        or os.environ.get("TSR_SE3_CACHE")
-        or Path(tempfile.gettempdir()) / f"tsr_se3_fit_cache_{_CACHE_TAG}"
+        cache_dir or os.environ.get("TSR_SE3_CACHE") or Path(tempfile.gettempdir()) / f"tsr_se3_fit_cache_{_CACHE_TAG}"
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
 
