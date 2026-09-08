@@ -1,6 +1,6 @@
 # G-TSR Sprint F — 6D Six-Generator Response-Profile Replication 范围契约
 
-状态：`SCOPE-DRAFT`（2026-09-08）
+状态：`IDENTIFICATION-LOCKED`（2026-09-08）
 
 前置：Sprint E 已 `IDENTIFICATION-LOCKED`（仅 planar oracle-phase `[du,dv,yaw]`）。Sprint D
 `ResponseOperator`（`15af5c7`）已是满秩 6D operator；Sprint E 的 `ProfileIdentifier` /
@@ -266,5 +266,7 @@ IDENTIFIED + NON_SELECTIVE），negative control（Frame-weighted）如预测般
 learned phase、matched-relation transfer、formal region-level observability、6D few-shot
 （N=8/15）、或“任意多个 generator 可同时被选择性识别”的泛化（后者属于 multigen 实验）。
 
-完成 F-01–F-06 后，本文件升级为 `IDENTIFICATION-LOCKED`；随后分别 scope-lock learned phase、
-matched-relation transfer 与 6D few-shot ablation。
+F-01–F-06 已在实现基线 `d5d3d72` 通过，本文件升级为
+`IDENTIFICATION-LOCKED`；完整验收事实见 `docs/gtsr_sprint_f_validation_results.md`。后续分别
+scope-lock learned phase、matched-relation transfer 与 6D few-shot ablation，不得回写或放宽本 Sprint
+的 oracle-phase 识别合同。
