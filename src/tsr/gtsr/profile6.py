@@ -4,7 +4,7 @@
 """Six-generator SE(3) response-profile identification (Sprint F).
 
 Faithful 6D port of ``maniskill_spectrum``'s ``SE3SmoothFinitePDiagModel``
-(commit ``e5ce8a3``, blob ``35cf06a9``) plus the threshold-free selectivity
+(commit ``e5ce8a3``, blob ``35cf06a9``) plus the structural-selectivity selectivity
 metrics. The generator diagonal is ``[du, dv, dw, d_roll, d_pitch, d_yaw]``;
 rotation channels use the local convention ``R_local = Rx(roll) Ry(pitch) Rz(yaw)``
 (column-vector, yaw innermost). This module neither loads ManiSkill / HDF5 data
@@ -14,10 +14,13 @@ rotation channels use the local convention ``R_local = Rx(roll) Ry(pitch) Rz(yaw
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
+
 import numpy as np
 from scipy.optimize import least_squares
 
-from .profile import rbf_basis
+from .profile import adjudicate_cell, rbf_basis
 
 SE3_DIM = 6
 # 3 translations in metres + 3 rotations at 0.03 m/rad (same axial scale as SE(2)).
@@ -545,3 +548,121 @@ def excitation_mask6(contexts, *, tol=1e-12):
     if contexts.ndim != 2:
         raise ValueError(f"contexts must have shape (n, 6), got {contexts.shape}")
     return (np.min(contexts, axis=0) < -tol) & (np.max(contexts, axis=0) > tol)
+
+
+@dataclass(frozen=True)
+class CellSelectivity:
+    """Per-cell selectivity quantities for one fitted profile (keyed or circular)."""
+
+    alpha_pre: np.ndarray      # (6,) mean alpha over q<2
+    alpha_post: np.ndarray     # (6,) mean alpha over q>=2
+    delta: np.ndarray          # (6,) alpha_pre - alpha_post
+    delta_yaw: float
+    delta_others_max: float
+    rank1_yaw: bool
+    transition: bool
+
+
+class SelectivityStatus(str, Enum):
+    """Per-generator selectivity verdict (spec §7)."""
+
+    SELECTIVE = "selective"
+    NON_SELECTIVE = "non_selective"
+    ABSTAIN = "abstain"
+
+
+class SelectivityMetrics6D:
+    """M1 / purity / M2 rank / M3 transition, per cell and 18-pair aggregate (spec §6)."""
+
+    YAW_INDEX = 5
+    TRANSITION_TAU = 0.2
+
+    def __init__(self, phase_codes):
+        self.phase_codes = np.asarray(phase_codes, dtype=np.int64)
+        self.pre_mask = self.phase_codes < 2
+
+    def per_cell(self, profile):
+        profile = np.asarray(profile, dtype=np.float64)
+        alpha_pre = profile[self.pre_mask].mean(axis=0)
+        alpha_post = profile[~self.pre_mask].mean(axis=0)
+        delta = alpha_pre - alpha_post
+        delta_yaw = float(delta[self.YAW_INDEX])
+        delta_others_max = float(np.max(np.delete(delta, self.YAW_INDEX)))
+        rank1_yaw = bool(int(np.argmax(delta)) == self.YAW_INDEX and delta_yaw > 0.0)
+        transition = bool(delta_yaw > self.TRANSITION_TAU)
+        return CellSelectivity(alpha_pre, alpha_post, delta, delta_yaw, delta_others_max, rank1_yaw, transition)
+
+    def cross_arm(self, keyed_cell, circular_cell):
+        """S_j = |alpha_pre_j(keyed) - alpha_pre_j(circular)| and the per-cell purity."""
+        S = np.abs(keyed_cell.alpha_pre - circular_cell.alpha_pre)
+        s_yaw = float(S[self.YAW_INDEX])
+        total = float(S.sum())
+        purity = (s_yaw / total) if total > 0 else np.nan
+        return S, purity
+
+    def aggregate(self, keyed_cells, circular_cells):
+        """Aggregate 18 ``(keyed, circular)`` pairs into the frozen headline dict."""
+        if len(keyed_cells) != len(circular_cells):
+            raise ValueError("keyed_cells and circular_cells must have equal length")
+        s_yaw_vals = []
+        s_others_max_vals = []
+        purity_vals = []
+        S_mean = np.zeros(6)
+        for keyed, circular in zip(keyed_cells, circular_cells):
+            S, purity = self.cross_arm(keyed, circular)
+            s_yaw_vals.append(S[self.YAW_INDEX])
+            s_others_max_vals.append(np.max(np.delete(S, self.YAW_INDEX)))
+            purity_vals.append(purity)
+            S_mean += S
+        S_mean /= len(keyed_cells)
+        return {
+            "S_yaw": float(np.mean(s_yaw_vals)),
+            "S_others_max": float(np.mean(s_others_max_vals)),
+            "purity": float(np.mean(purity_vals)),
+            "rank": float(np.mean([cell.rank1_yaw for cell in keyed_cells])),
+            "transition": float(np.mean([cell.transition for cell in keyed_cells])),
+            "S_mean": S_mean,
+        }
+
+
+class SelectivityVerdict6D:
+    """Two-layer verdict: identification (``CellStatus``) + selectivity (spec §7)."""
+
+    YAW_INDEX = 5
+
+    def __init__(self, headline):
+        self.headline = headline
+
+    def identify(self, contexts, *, observable, fit_succeeded, meets_gate):
+        """Per-generator ``CellStatus`` from data (6-generator excitation)."""
+        excited = excitation_mask6(contexts)
+        observable = np.broadcast_to(np.asarray(observable), (6,))
+        fit_succeeded = np.broadcast_to(np.asarray(fit_succeeded), (6,))
+        meets_gate = np.broadcast_to(np.asarray(meets_gate), (6,))
+        return [
+            adjudicate_cell(
+                excited=bool(exc),
+                observable=bool(obs),
+                fit_succeeded=bool(fit),
+                meets_heldout_gate=bool(gate),
+            )
+            for exc, obs, fit, gate in zip(excited, observable, fit_succeeded, meets_gate)
+        ]
+
+    def selectivity(self, identification, *, fit_succeeded):
+        """Per-generator ``SelectivityStatus``: yaw SELECTIVE iff all §6 gates pass."""
+        headline = self.headline
+        yaw_selective = bool(
+            headline["S_yaw"] > 4.0 * headline["S_others_max"]
+            and headline["rank"] == 1.0
+            and headline["transition"] == 1.0
+        )
+        statuses = []
+        for j, (_, ok) in enumerate(zip(identification, np.broadcast_to(np.asarray(fit_succeeded), (6,)))):
+            if not bool(ok):
+                statuses.append(SelectivityStatus.ABSTAIN)
+            elif j == self.YAW_INDEX:
+                statuses.append(SelectivityStatus.SELECTIVE if yaw_selective else SelectivityStatus.NON_SELECTIVE)
+            else:
+                statuses.append(SelectivityStatus.NON_SELECTIVE)
+        return statuses

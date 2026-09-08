@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from tests.gtsr._baseline_models_se3 import (
     SE3DiagonalOperatorModel,
@@ -16,6 +17,9 @@ from tsr.gtsr.profile6 import (
     SE3_METRIC_SCALE,
     ProfileIdentifier6D,
     ResponseProfile6D,
+    SelectivityMetrics6D,
+    SelectivityStatus,
+    SelectivityVerdict6D,
     euler_from_matrix,
     matrix_from_euler,
     matrix_from_euler_batched,
@@ -226,3 +230,57 @@ def test_baselines_jacobian_diag_shapes_and_frame_weighted_shared_weight():
     diagonal = fw.jacobian_diag()
     for generator in range(6):
         np.testing.assert_allclose(diagonal[:, generator], fw.weight, atol=1e-12)
+
+
+def _synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3, other_pre=0.95, other_post=0.95):
+    profile = np.empty((len(phase_codes), 6))
+    profile[:, 5] = np.where(phase_codes < 2, yaw_pre, yaw_post)
+    profile[:, :5] = np.where(phase_codes < 2, other_pre, other_post)[:, None]
+    return profile
+
+
+def test_selectivity_metrics_per_cell_and_cross_arm():
+    phase_codes = np.repeat(np.arange(4), 10)
+    metrics = SelectivityMetrics6D(phase_codes)
+    keyed = metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3))
+    circular = metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1))
+    assert keyed.delta_yaw == pytest.approx(0.6)
+    assert keyed.delta_others_max == pytest.approx(0.0)
+    assert keyed.rank1_yaw is True
+    assert keyed.transition is True
+
+    S, purity = metrics.cross_arm(keyed, circular)
+    assert S[5] == pytest.approx(0.8)  # |0.9 - 0.1|
+    assert purity == pytest.approx(S[5] / S.sum())
+    assert S[0] == pytest.approx(0.0)
+
+
+def test_selectivity_metrics_aggregate_matches_frozen_semantics():
+    phase_codes = np.repeat(np.arange(4), 25)
+    metrics = SelectivityMetrics6D(phase_codes)
+    keyed_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3)) for _ in range(18)]
+    circular_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1)) for _ in range(18)]
+    headline = metrics.aggregate(keyed_cells, circular_cells)
+    # S_yaw = mean_r |0.9-0.1| = 0.8; others = 0 -> purity = 1.0; rank/transition = 1.0.
+    assert headline["S_yaw"] == pytest.approx(0.8)
+    assert headline["S_others_max"] == pytest.approx(0.0)
+    assert headline["purity"] == pytest.approx(1.0)
+    assert headline["rank"] == pytest.approx(1.0)
+    assert headline["transition"] == pytest.approx(1.0)
+
+
+def test_selectivity_verdict_two_layer():
+    phase_codes = np.repeat(np.arange(4), 25)
+    metrics = SelectivityMetrics6D(phase_codes)
+    keyed_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.9, yaw_post=0.3)) for _ in range(18)]
+    circular_cells = [metrics.per_cell(_synthetic_cell(phase_codes, yaw_pre=0.1, yaw_post=0.1)) for _ in range(18)]
+    headline = metrics.aggregate(keyed_cells, circular_cells)
+
+    contexts = np.random.default_rng(0).uniform(-0.012, 0.012, size=(60, 6))
+    verdict = SelectivityVerdict6D(headline)
+    identification = verdict.identify(
+        contexts, observable=np.ones(6, dtype=bool), fit_succeeded=True, meets_gate=np.ones(6, dtype=bool)
+    )
+    selectivity = verdict.selectivity(identification, fit_succeeded=np.ones(6, dtype=bool))
+    assert selectivity[5] is SelectivityStatus.SELECTIVE
+    assert all(s is SelectivityStatus.NON_SELECTIVE for s in selectivity[:5])
