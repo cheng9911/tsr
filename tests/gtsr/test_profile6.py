@@ -9,6 +9,8 @@ import numpy as np
 
 from tsr.gtsr.profile6 import (
     SE3_METRIC_SCALE,
+    ProfileIdentifier6D,
+    ResponseProfile6D,
     euler_from_matrix,
     matrix_from_euler,
     matrix_from_euler_batched,
@@ -23,6 +25,7 @@ from tsr.gtsr.profile6 import (
     se3_log,
     socket_frame6,
 )
+from tsr.gtsr.response import ResponseOperator
 
 
 def test_metric_scale_frozen():
@@ -119,3 +122,86 @@ def test_socket_frame6():
     context = np.array([0.01, -0.02, 0.03, 0.05, -0.05, 0.1])
     expected = nominal @ se3_from_pose6(context)
     np.testing.assert_allclose(socket_frame6(context, nominal), expected, atol=1e-12)
+
+
+def test_F02_action_matches_response_operator():
+    """ProfileIdentifier6D.action == ResponseOperator(reference, I).action(socket_frame6)."""
+    nominal_pose6 = np.array([0.1, -0.2, 0.15, 0.05, -0.04, 0.3])
+    nominal_frame = se3_from_pose6(nominal_pose6)
+    identifier = ProfileIdentifier6D()
+    identifier.nominal_frame = nominal_frame
+    identifier.nominal_frame_inverse = np.linalg.inv(nominal_frame)
+
+    operator = ResponseOperator(nominal_frame, np.eye(6))
+    contexts = np.array(
+        [
+            [0.015, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.015, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.261799, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, -0.261799, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.523599],
+            [0.012, -0.012, 0.012, 0.2, -0.2, 0.4],
+        ]
+    )
+    alphas = np.array(
+        [
+            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.3, 0.5, 0.7, 0.9, 1.1, 1.25],
+            [1.25, 0.2, 0.4, 0.6, 0.8, 0.1],
+        ]
+    )
+    for context in contexts:
+        relation = socket_frame6(context, nominal_frame)
+        for alpha in alphas:
+            action_identifier = identifier.action(context, alpha)
+            action_operator = operator.action(relation, alpha)
+            assert np.linalg.norm(action_identifier - action_operator, ord="fro") < 1e-9
+
+
+def _planted_recovery_data():
+    """Synthetic 60-mixed contexts/curves with a planted 6D profile (spec F-03)."""
+    n_steps = 100
+    scale = np.array([0.012, 0.012, 0.012, np.deg2rad(15), np.deg2rad(15), np.deg2rad(30)])
+    rng = np.random.default_rng(20260908)
+    contexts = rng.uniform(-1.0, 1.0, size=(60, 6)) * scale
+    assert np.linalg.matrix_rank(contexts / scale) == 6
+    assert (np.min(contexts, axis=0) < 0).all() and (np.max(contexts, axis=0) > 0).all()
+
+    progress = np.concatenate([(i + np.linspace(0.0, 1.0, 25)) / 4 for i in range(4)])
+    phase_codes = np.repeat(np.arange(4), 25)
+
+    nominal_frame = np.eye(4)
+    # Nominal curve: peg descends along -z from 0 to -0.05, fixed orientation.
+    nominal_curve = np.zeros((n_steps, 6))
+    nominal_curve[:, 2] = -0.05 * (1.0 - progress)
+
+    def alpha_star(g):
+        return np.array([1.0, 1.0, 1.0, 1.0, 1.0, 0.1 + 0.9 * (1.0 - g)])
+
+    operator = ResponseOperator(nominal_frame, np.eye(6))
+    curves = np.empty((60, n_steps, 6))
+    for c, context in enumerate(contexts):
+        relation = socket_frame6(context, nominal_frame)
+        for s in range(n_steps):
+            action = operator.action(relation, alpha_star(progress[s]))
+            curves[c, s] = pose6_from_se3(action @ se3_from_pose6(nominal_curve[s]))
+    return contexts, curves, progress, phase_codes, alpha_star, nominal_curve
+
+
+def test_F03_planted_recovery():
+    contexts, curves, progress, phase_codes, alpha_star, _ = _planted_recovery_data()
+    identifier = ProfileIdentifier6D()
+    profile = identifier.fit(
+        contexts, curves, progress, phase_codes, nominal_frame_pose=np.zeros(6)
+    )
+    assert isinstance(profile, ResponseProfile6D)
+    assert profile.optimization["success"]
+    assert identifier.jacobian_diag().shape == (100, 6)
+    assert profile.theta.shape == (6, 24)
+    for q in range(4):
+        for rho in (0.0, 0.5, 1.0):
+            g = (q + rho) / 4
+            recovered = identifier.jacobian_diag()[q * 25 + int(round(rho * 24))]
+            target = alpha_star(g)
+            assert np.max(np.abs(recovered - target)) <= 5e-3

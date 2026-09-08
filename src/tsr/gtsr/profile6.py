@@ -15,6 +15,9 @@ rotation channels use the local convention ``R_local = Rx(roll) Ry(pitch) Rz(yaw
 from __future__ import annotations
 
 import numpy as np
+from scipy.optimize import least_squares
+
+from .profile import rbf_basis
 
 SE3_DIM = 6
 # 3 translations in metres + 3 rotations at 0.03 m/rad (same axial scale as SE(2)).
@@ -260,3 +263,285 @@ def socket_frame6(context, nominal_frame):
     relation pose ``ResponseOperator`` consumes (spec §2, F-02).
     """
     return np.asarray(nominal_frame, dtype=np.float64) @ se3_from_pose6(context)
+
+
+class ResponseProfile6D:
+    """Serializable, read-only ``q -> alpha`` finite diagonal profile (6 generators).
+
+    ``alpha(q, rho)`` is the length-6 relevance vector ``[a_du, a_dv, a_dw,
+    a_roll, a_pitch, a_yaw]`` under the frozen RBF-sigmoid parameterization, with
+    ``g = (q + rho) / n_phases`` and ``q`` the fitting index (0..3). Unlike the
+    planar profile, the 6D pipeline works in q-indices directly (the loader maps
+    solver phase ``s -> q = s - 3``), so there is no solver-code map here.
+    """
+
+    __slots__ = ("_theta", "_n_basis", "_n_phases", "_alpha_max", "_basis_width", "_optimization", "_frozen")
+
+    def __setattr__(self, name, value):
+        if getattr(self, "_frozen", False):
+            raise AttributeError("ResponseProfile6D is read-only")
+        object.__setattr__(self, name, value)
+
+    def __init__(self, theta, alpha_max=1.25, basis_width=0.065, *, optimization=None, n_phases=4):
+        theta = np.asarray(theta, dtype=np.float64)
+        if theta.ndim != 2 or theta.shape[0] != SE3_DIM:
+            raise ValueError(f"theta must have shape (6, n_basis), got {theta.shape}")
+        self._theta = tuple(tuple(float(value) for value in row) for row in theta)
+        self._n_basis = theta.shape[1]
+        self._n_phases = int(n_phases)
+        self._alpha_max = float(alpha_max)
+        self._basis_width = float(basis_width)
+        self._optimization = dict(optimization) if optimization else {}
+        self._frozen = True
+
+    @property
+    def theta(self):
+        return np.asarray(self._theta, dtype=np.float64).copy()
+
+    @property
+    def n_basis(self):
+        return self._n_basis
+
+    @property
+    def alpha_max(self):
+        return self._alpha_max
+
+    @property
+    def basis_width(self):
+        return self._basis_width
+
+    @property
+    def optimization(self):
+        return dict(self._optimization)
+
+    def alpha_from_g(self, g):
+        g = np.asarray(g, dtype=np.float64)
+        basis = rbf_basis(np.atleast_1d(g), self._n_basis, self._basis_width)
+        logits = basis @ np.asarray(self._theta, dtype=np.float64).T
+        return self._alpha_max / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
+
+    def alpha(self, q, rho):
+        """Length-6 relevance at fitting phase ``q`` and within-phase progress ``rho``."""
+        g = (int(q) + float(rho)) / self._n_phases
+        return np.asarray(self.alpha_from_g(g)).reshape(-1)
+
+    def to_dict(self):
+        return {
+            "alpha_max": self._alpha_max,
+            "basis_width": self._basis_width,
+            "n_basis": self._n_basis,
+            "n_phases": self._n_phases,
+            "theta": np.asarray(self._theta, dtype=np.float64).tolist(),
+            "optimization": dict(self._optimization),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        data = dict(data)
+        return cls(
+            np.asarray(data["theta"], dtype=np.float64),
+            alpha_max=float(data["alpha_max"]),
+            basis_width=float(data["basis_width"]),
+            optimization=data.get("optimization"),
+            n_phases=int(data.get("n_phases", 4)),
+        )
+
+
+class ProfileIdentifier6D:
+    """Frozen six-generator Pdiag-finite fitter: ``D_E -> theta`` (spec §3).
+
+    Faithful 6D port of ``SE3SmoothFinitePDiagModel``: ``alpha_max``-constrained
+    RBF-sigmoid generator profiles with second-difference smoothness, realized by
+    ``C0 Exp(P(s) Log(C0^-1 C)) C0^-1 X0`` in SE(3), fitted with
+    ``scipy.optimize.least_squares(method="trf")`` and three alternating
+    nominal/profile updates. The nominal frame pose is supplied at fit time (like
+    the planar ``ProfileIdentifier``); ``phase_codes`` (q-indices) is accepted but
+    unused by the fit, mirroring the frozen model.
+    """
+
+    def __init__(self, alpha_max=1.25, n_basis=24, basis_width=0.065, smoothness_weight=0.1, nominal_iterations=3):
+        self.alpha_max = float(alpha_max)
+        self.n_basis = int(n_basis)
+        self.basis_width = float(basis_width)
+        self.smoothness_weight = float(smoothness_weight)
+        self.nominal_iterations = int(nominal_iterations)
+
+    def _basis(self, progress):
+        return rbf_basis(progress, self.n_basis, self.basis_width)
+
+    def _alpha(self, parameters, basis):
+        logits = basis @ parameters.reshape(SE3_DIM, self.n_basis).T
+        return self.alpha_max / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
+
+    def _context_twist(self, context):
+        intervention = se3_from_pose6(context)
+        socket_world = self.nominal_frame @ intervention
+        relative = self.nominal_frame_inverse @ socket_world
+        return se3_log(relative)
+
+    def _twists(self, contexts):
+        return np.asarray([self._context_twist(context) for context in contexts])
+
+    def _local_actions(self, contexts, alpha):
+        twists = self._twists(contexts)
+        scaled = twists[:, None, :] * alpha[None, :, :]
+        return se3_exp_batched(scaled.reshape(-1, 6)).reshape(len(contexts), alpha.shape[0], 4, 4)
+
+    def _predict_with(self, contexts, nominal_curve, alpha):
+        contexts = np.asarray(contexts, dtype=np.float64)
+        actions = self._local_actions(contexts, alpha)
+        local_nominal = self.nominal_frame_inverse @ se3_from_pose6_batched(
+            np.asarray(nominal_curve, dtype=np.float64)
+        )
+        pred_local = np.einsum("csij,sjk->csik", actions, local_nominal)
+        pred_world = np.einsum("ij,csjk->csik", self.nominal_frame, pred_local)
+        return pose6_from_se3_batched(pred_world)
+
+    def _update_nominal(self, contexts, curves, alpha):
+        contexts = np.asarray(contexts, dtype=np.float64)
+        curves = np.asarray(curves, dtype=np.float64)
+        actions = self._local_actions(contexts, alpha)
+        curves_T = se3_from_pose6_batched(curves.reshape(-1, 6)).reshape(
+            len(contexts), curves.shape[1], 4, 4
+        )
+        obs_local = np.einsum("ij,csjk->csik", self.nominal_frame_inverse, curves_T)
+        actions_inv = se3_inverse_batched(actions)
+        implied_local = np.einsum("csij,csjk->csik", actions_inv, obs_local)
+        implied_world = np.einsum("ij,csjk->csik", self.nominal_frame, implied_local)
+        implied = pose6_from_se3_batched(implied_world)
+        nominal = np.empty((curves.shape[1], SE3_DIM), dtype=np.float64)
+        nominal[:, :3] = implied[:, :, :3].mean(axis=0)
+        for generator in range(3):
+            angle = implied[:, :, 3 + generator]
+            nominal[:, 3 + generator] = np.arctan2(
+                np.sin(angle).mean(axis=0), np.cos(angle).mean(axis=0)
+            )
+        return nominal
+
+    def _initial_parameters(self, pointwise_diagonal, basis):
+        clipped = np.clip(np.asarray(pointwise_diagonal), 1e-4, self.alpha_max - 1e-4)
+        logits = np.log(clipped / (self.alpha_max - clipped))
+        regularizer = 1e-6 * np.eye(self.n_basis)
+        inverse = np.linalg.solve(basis.T @ basis + regularizer, basis.T)
+        parameters = [inverse @ logits[:, generator] for generator in range(SE3_DIM)]
+        return np.asarray(parameters).reshape(-1)
+
+    def _pointwise_diagonal(self, contexts, curves):
+        contexts_metric = se3_to_metric(contexts)
+        curves_metric = se3_to_metric(curves)
+        n_steps = curves.shape[1]
+        intercept_metric = np.empty((n_steps, SE3_DIM), dtype=np.float64)
+        diagonal = np.empty((n_steps, SE3_DIM), dtype=np.float64)
+        for step in range(n_steps):
+            for generator in range(SE3_DIM):
+                design = np.column_stack([np.ones(len(contexts_metric)), contexts_metric[:, generator]])
+                coefficients = np.linalg.lstsq(design, curves_metric[:, step, generator], rcond=None)[0]
+                intercept_metric[step, generator] = coefficients[0]
+                diagonal[step, generator] = coefficients[1]
+        return intercept_metric, diagonal
+
+    def fit(self, contexts, curves, progress, phase_codes=None, nominal_frame_pose=None):
+        contexts = np.asarray(contexts, dtype=np.float64)
+        curves = np.asarray(curves, dtype=np.float64)
+        progress = np.asarray(progress, dtype=np.float64)
+        if contexts.ndim != 2 or contexts.shape[1] != 6:
+            raise ValueError(f"contexts must have shape (n, 6), got {contexts.shape}")
+        if curves.ndim != 3 or curves.shape[2] != 6 or curves.shape[0] != contexts.shape[0]:
+            raise ValueError(f"curves must have shape (n, steps, 6), got {curves.shape}")
+        if progress.ndim != 1 or progress.shape[0] != curves.shape[1]:
+            raise ValueError(f"progress must have shape (steps,), got {progress.shape}")
+        if not np.all(np.isfinite(contexts)) or not np.all(np.isfinite(curves)) or not np.all(np.isfinite(progress)):
+            raise ValueError("contexts, curves and progress must be finite")
+        if np.linalg.matrix_rank(se3_to_metric(contexts)) < 6:
+            raise ValueError("intervention contexts are rank-deficient; all six generators must be excited")
+        if not np.all(excitation_mask6(contexts)):
+            raise ValueError("one or more generators lack signed (+/-) intervention coverage (UNEXCITED)")
+        if nominal_frame_pose is None:
+            raise ValueError("nominal_frame_pose is required")
+        self.nominal_frame_pose = np.asarray(nominal_frame_pose, dtype=np.float64)
+        if self.nominal_frame_pose.shape != (6,):
+            raise ValueError("nominal_frame_pose must have shape (6,)")
+        self.nominal_frame = se3_from_pose6(self.nominal_frame_pose)
+        self.nominal_frame_inverse = se3_inverse(self.nominal_frame)
+        if phase_codes is not None:
+            phase_codes = np.asarray(phase_codes)
+            if phase_codes.shape != progress.shape:
+                raise ValueError("phase_codes must have shape (steps,)")
+            if not np.issubdtype(phase_codes.dtype, np.integer):
+                raise ValueError("phase_codes must contain integer q indices")
+            if not set(phase_codes.tolist()).issubset({0, 1, 2, 3}):
+                raise ValueError("phase_codes must be q indices in {0, 1, 2, 3}")
+            self.phase_codes = phase_codes.astype(np.int64)
+
+        basis = self._basis(progress)
+        intercept_metric, pointwise_diagonal = self._pointwise_diagonal(contexts, curves)
+        nominal_curve = se3_from_metric(intercept_metric)
+        parameters = self._initial_parameters(pointwise_diagonal, basis)
+
+        optimization = None
+        for iteration in range(self.nominal_iterations):
+
+            def residual(candidate, contexts=contexts, curves=curves, nominal_curve=nominal_curve):
+                alpha = self._alpha(candidate, basis)
+                prediction = self._predict_with(contexts, nominal_curve, alpha)
+                data_residual = prediction - curves
+                data_residual[..., 3:] = wrap_angle(data_residual[..., 3:])
+                data_residual = se3_to_metric(data_residual).reshape(-1)
+                smooth = np.diff(alpha, n=2, axis=0)
+                scale = np.sqrt(self.smoothness_weight * data_residual.size / max(smooth.size, 1)) * np.mean(
+                    np.abs(se3_to_metric(contexts)), axis=0
+                )
+                smooth_residual = (smooth * scale[None, :]).reshape(-1)
+                return np.concatenate([data_residual, smooth_residual])
+
+            optimization = least_squares(
+                residual,
+                parameters,
+                method="trf",
+                max_nfev=500,
+                ftol=1e-9,
+                xtol=1e-9,
+                gtol=1e-9,
+            )
+            parameters = optimization.x
+            alpha = self._alpha(parameters, basis)
+            if iteration + 1 < self.nominal_iterations:
+                nominal_curve = self._update_nominal(contexts, curves, alpha)
+
+        self.parameters = parameters.reshape(SE3_DIM, self.n_basis)
+        self.diagonal = self._alpha(parameters, basis)
+        self.nominal_curve = nominal_curve
+        self.optimization_success = bool(optimization.success)
+        self.optimization_cost = float(optimization.cost)
+        self.optimization_nfev = int(optimization.nfev)
+        self.optimization_optimality = float(optimization.optimality)
+        return ResponseProfile6D(
+            self.parameters,
+            alpha_max=self.alpha_max,
+            basis_width=self.basis_width,
+            optimization={
+                "success": self.optimization_success,
+                "cost": self.optimization_cost,
+                "nfev": self.optimization_nfev,
+                "optimality": self.optimization_optimality,
+            },
+        )
+
+    def predict(self, contexts):
+        return self._predict_with(contexts, self.nominal_curve, self.diagonal)
+
+    def jacobian_diag(self):
+        return self.diagonal.copy()
+
+    def action(self, context, alpha):
+        """Return the frozen SE(3) left action ``C0 Exp(alpha . c) C0^-1``."""
+        twist = self._context_twist(context)
+        return self.nominal_frame @ se3_exp(np.asarray(alpha, dtype=np.float64) * twist) @ self.nominal_frame_inverse
+
+
+def excitation_mask6(contexts, *, tol=1e-12):
+    """Per-generator excitation booleans for 6-vector contexts (spec §7)."""
+    contexts = np.asarray(contexts, dtype=np.float64)
+    if contexts.ndim != 2:
+        raise ValueError(f"contexts must have shape (n, 6), got {contexts.shape}")
+    return (np.min(contexts, axis=0) < -tol) & (np.max(contexts, axis=0) > tol)
