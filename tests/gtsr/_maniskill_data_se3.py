@@ -200,3 +200,49 @@ def load_se3_rollout(path, bins):
         "baseline_keys": sorted(baseline_cond.values()),
         "usable_keys": sorted(usable_groups.values()),
     }
+
+
+def load_se3_isolated(path, bins):
+    """Extract the isolated + baseline split (contexts, curves, generators) from one arm/seed .h5.
+
+    Returns the 14 single-axis isolated interventions with their per-row generator
+    name (``c_j != 0``) plus the single baseline curve, for held-out adequacy.
+    """
+    import h5py
+
+    with h5py.File(path, "r") as data_file:
+        usable_groups = {
+            int(data_file[key].attrs["condition_id"]): key
+            for key in episode_keys(data_file)
+            if usable(data_file[key]) and complete(data_file[key])
+        }
+        isolated_cond = {
+            cid: key
+            for cid, key in usable_groups.items()
+            if str(data_file[key].attrs["generator"]) in {"du", "dv", "dw", "roll", "pitch", "yaw"}
+        }
+        baseline_cond = {
+            cid: key for cid, key in usable_groups.items()
+            if str(data_file[key].attrs["generator"]) == "baseline"
+        }
+        isolated_cids = sorted(isolated_cond)
+        isolated_keys = [isolated_cond[cid] for cid in isolated_cids]
+        baseline_key = sorted(baseline_cond.values())[0]
+        isolated_contexts = np.asarray(
+            [np.asarray(data_file[key]["causal_delta"]) for key in isolated_keys], dtype=np.float64
+        )
+        isolated_curves = np.asarray(
+            [task_curve_se3(data_file[key], bins) for key in isolated_keys], dtype=np.float64
+        )
+        isolated_generators = [str(data_file[key].attrs["generator"]) for key in isolated_keys]
+        isolated_condition_ids = [int(data_file[key].attrs["condition_id"]) for key in isolated_keys]
+        baseline_curve = task_curve_se3(data_file[baseline_key], bins)
+    return {
+        "isolated_keys": isolated_keys,
+        "isolated_contexts": isolated_contexts,
+        "isolated_curves": isolated_curves,
+        "isolated_generators": isolated_generators,
+        "isolated_condition_ids": isolated_condition_ids,
+        "baseline_key": baseline_key,
+        "baseline_curve": baseline_curve,
+    }
