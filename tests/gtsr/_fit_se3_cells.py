@@ -20,7 +20,10 @@ import numpy as np
 
 from tests.gtsr._maniskill_data_se3 import (
     ARMS,
+    SE3_CONTEXT_MANIFEST_SHA256,
+    SE3_EXPERIMENT_SHA256,
     SE3_SEEDS,
+    SE3_SUBSET_MANIFEST_SHA256,
     load_se3_rollout,
     n30_subsets,
     nominal_frame_se3,
@@ -30,6 +33,16 @@ from tests.gtsr._maniskill_data_se3 import (
 from tsr.gtsr.profile6 import ProfileIdentifier6D
 
 BINS = 25
+
+# The resumable cache is only valid for the hash-pinned frozen dataset (F-01 is
+# the authoritative integrity gate). Fold the manifest pins into the cache
+# directory so re-pinning the codebase to a new dataset version invalidates
+# stale cells instead of silently returning them.
+_CACHE_TAG = (
+    f"{SE3_CONTEXT_MANIFEST_SHA256[:8]}_"
+    f"{SE3_EXPERIMENT_SHA256[:8]}_"
+    f"{SE3_SUBSET_MANIFEST_SHA256[:8]}"
+)
 
 # Module globals populated before forking (fork copies them into each worker).
 _DATASETS = None
@@ -72,7 +85,11 @@ def fit_all_pdiag_cells(root, processes=None, cache_dir=None):
     from tests.gtsr._maniskill_data_se3 import load_se3_subsets
 
     subsets = n30_subsets(load_se3_subsets(root))
-    cache_dir = Path(cache_dir or os.environ.get("TSR_SE3_CACHE", Path(tempfile.gettempdir()) / "tsr_se3_fit_cache"))
+    cache_dir = Path(
+        cache_dir
+        or os.environ.get("TSR_SE3_CACHE")
+        or Path(tempfile.gettempdir()) / f"tsr_se3_fit_cache_{_CACHE_TAG}"
+    )
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     _load_cell_datasets()
