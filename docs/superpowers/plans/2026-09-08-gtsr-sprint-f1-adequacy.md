@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在冻结 SE(3) 数据上，为六个 generator 分别建立真实 held-out adequacy 证据层：确定性重生成 36 个完整只读 profile artifact，并用 `c_j≠0` 的 isolated 干预计算逐 generator 的变换级响应误差、task error、endpoint error 与 paired difference（vs Frame/Fixed oracle），供 G-00 冻结 `δ_sup`/`δ_eq` 后落地 superiority/equivalence 判定。
+**Goal:** 在冻结 SE(3) 数据上，为六个 generator 分别建立真实 held-out adequacy 证据层：确定性重生成 36 个完整 provenance-pinned profile artifact，并用 `c_j≠0` 的 isolated 干预计算逐 generator 的变换级响应误差、task error、endpoint error 与 paired difference（vs Frame/Fixed oracle），供 G-00 冻结 `δ_sup`/`δ_eq` 后落地 superiority/equivalence 判定。
 
 **Architecture:** 两个测试侧模块 + 一个测试文件。`_maniskill_data_se3.py` 增加 isolated split 提取（contexts/curves/generators/baseline）；`_fit_se3_cells.py` 增加完整 artifact 持久化（theta + nominal_curve + nominal_frame_pose + provenance + SHA-256）；新模块 `_fit_se3_adequacy.py` 承载 SE(3) 变换级残差与逐 generator adequacy 计算（action 复用 `ResponseProfile6D.action` 的 left-action 语义，残差用 `profile6` 的 `SE3_METRIC_SCALE` + `wrap_angle` 约定）。判据 margin 不在本计划冻结。
 
@@ -178,7 +178,7 @@ git commit -m "feat(gtsr): add isolated split loader for F.1 held-out adequacy"
 
 ---
 
-## Task 2: 完整只读 profile artifact 持久化
+## Task 2: 完整 provenance-pinned profile artifact 持久化
 
 **Files:**
 - Modify: `tests/gtsr/_fit_se3_cells.py`
@@ -303,7 +303,7 @@ def _artifact_sha256(artifact):
 
 
 def fit_all_pdiag_artifacts(root, processes=None, cache_dir=None):
-    """Fit all 36 cells and return full read-only artifacts (theta + nominal + provenance)."""
+    """Fit all 36 cells and return full provenance-pinned artifacts (theta + nominal + provenance)."""
     from tests.gtsr._maniskill_data_se3 import load_se3_subsets
 
     subsets = n30_subsets(load_se3_subsets(root))
@@ -397,7 +397,7 @@ Expected: PASS（数据缺失时 SKIP）。同时跑 `pytest tests/gtsr/test_spr
 
 ```bash
 git add tests/gtsr/_fit_se3_cells.py tests/gtsr/test_sprint_f1_adequacy.py
-git commit -m "feat(gtsr): persist full read-only profile artifacts for F.1 adequacy"
+git commit -m "feat(gtsr): persist full provenance-pinned profile artifacts for F.1 adequacy"
 ```
 
 ---
@@ -928,7 +928,7 @@ git commit -m "test(gtsr): add F.1 held-out adequacy integration (no constant st
 
 ## Self-Review（对照 spec）
 
-1. **Spec coverage**：§1 训练/验证分离 → Task 1（isolated split 提取 + generator 计数）+ Task 2（完整 artifact + provenance + SHA）；§1.1 完整只读 artifact → Task 2；§2 逐 generator 指标（响应误差/ task error / endpoint error / paired difference / 五项状态）→ Task 4 + Task 5；§3 arm×generator 基线（Frame α=1、Fixed α=0）→ Task 4 的 `ALPHA_FRAME`/`ALPHA_FIXED` + `diff_vs_frame`/`diff_vs_fixed`；§3 主比较方向冻结 → Task 5 的 `primary_oracle`，§3 的 36≠36 聚合规则 → Task 5 的 `aggregate_cells`，两者在 Task 6 汇合为"每 arm×seed 先聚合、再按唯一主方向报告"；§4 数据角色 → 无新任务（沿用 3 个 development seeds）；§5 退出条件 → Task 6 只产出 development 级量，margin 判定留 G-00。
+1. **Spec coverage**：§1 训练/验证分离 → Task 1（isolated split 提取 + generator 计数）+ Task 2（完整 artifact + provenance + SHA）；§1.1 完整 provenance-pinned artifact → Task 2；§2 逐 generator 指标（响应误差/ task error / endpoint error / paired difference / 五项状态）→ Task 4 + Task 5；§3 arm×generator 基线（Frame α=1、Fixed α=0）→ Task 4 的 `ALPHA_FRAME`/`ALPHA_FIXED` + `diff_vs_frame`/`diff_vs_fixed`；§3 主比较方向冻结 → Task 5 的 `primary_oracle`，§3 的 36≠36 聚合规则 → Task 5 的 `aggregate_cells`，两者在 Task 6 汇合为"每 arm×seed 先聚合、再按唯一主方向报告"；§4 数据角色 → 无新任务（沿用 3 个 development seeds）；§5 退出条件 → Task 6 只产出 development 级量，margin 判定留 G-00。
 2. **Gap 标记**：`δ_sup`/`δ_eq` margin 与 superiority/equivalence 判定**明确不在本计划**，由 G-00（B1）预注册记录冻结（spec §3/§5 要求"margin 在查看 confirmatory 数据前确定"）。Task 6 只产出 development 级 paired difference 与 finite 收口，**不写** `assert True`、不写 verdict 断言、不宣称 superiority/equivalence；这些判定在 margin 冻结后另立（不在此计划内）。
 3. **类型一致性**：`alpha_fn(step) -> (6,)` 贯穿 Task 4/5；`se3_response_action(nominal, context, alpha)` 的 `alpha` 为 `(6,)`；`adequacy_summary` 的 `progress` 为 `(steps,)`，与 `progress_grid_se3(BINS)[0]` 一致；artifact 的 `theta`(6,24)/`nominal_curve`(steps,6)/`nominal_frame_pose`(6,) 与 `ResponseProfile6D`/`se3_from_pose6` 消费一致。`aggregate_cells(list[dict[gen]dict[field]]) -> dict[gen]dict[field]` 的输入恰为 `adequacy_summary` 的输出（dict of dict），字段名（`response_error/task_error/endpoint_error/diff_vs_frame/diff_vs_fixed`）在 Task 5 两处一致；`primary_oracle(arm, generator) -> "frame"|"fixed"` 与 Task 6 的字段选择映射一致。
 4. **Placeholder scan**：全计划无 `"s0"`、无 `assert True`、无 `TBD`/`TODO`/`待实现`。Task 6 的 `subset_ids` 从真实 artifact dict 取全部 6 个 N=30 子集；margin 未冻结是**显式范围界定**（`δ_sup`/`δ_eq` 由 G-00 B1 填），不是隐藏 TODO。

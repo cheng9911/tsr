@@ -216,7 +216,11 @@ def _load_artifact(loaded):
 
 
 def fit_all_pdiag_artifacts(root, processes=None, cache_dir=None):
-    """Fit all 36 cells and return full read-only artifacts (theta + nominal + provenance)."""
+    """Fit all 36 cells and return full provenance-pinned artifacts (theta + nominal + provenance).
+
+    The artifact carries ``artifact_sha256``, a canonical SHA-256 over its content, so any
+    mutation is detectable (tamper-evident) rather than blocked at the type level.
+    """
     from tests.gtsr._maniskill_data_se3 import load_se3_subsets
 
     subsets = n30_subsets(load_se3_subsets(root))

@@ -3,7 +3,7 @@
 
 """F.1: held-out adequacy for the frozen six-generator SE(3) profile (Sprint F.1).
 
-Task 1/2 data-dependent tests (isolated split + full read-only artifacts), Task 3/4/5
+Task 1/2 data-dependent tests (isolated split + full provenance-pinned artifacts), Task 3/4/5
 pure-numpy unit tests for the SE(3) transform-level residual and per-generator adequacy,
 and Task 6 the development-level integration that reports primary-direction paired
 differences without freezing any margin (margins are G-00 / B1).
@@ -79,7 +79,7 @@ def test_load_se3_isolated_split_shape_and_generators():
     np.testing.assert_allclose(isolated_sorted, expected_sorted, atol=1e-12)
 
 
-# --- Task 2: full read-only profile artifacts -------------------------------------
+# --- Task 2: full provenance-pinned profile artifacts -----------------------------
 
 
 @pytest.mark.slow
