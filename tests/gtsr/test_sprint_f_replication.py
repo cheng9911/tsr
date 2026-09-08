@@ -222,3 +222,21 @@ def test_F05_frame_weighted_negative_control():
     assert headline["transition"] == pytest.approx(float(frozen_trans["accuracy"]))
     assert headline["rank"] == 0.0 and headline["transition"] == 0.0
     assert abs(headline["purity"] - 1.0 / 6.0) <= GATE_ATOL
+
+
+def test_F06_public_exports_and_no_planar_regression():
+    import tsr.gtsr as gtsr
+    from tsr.gtsr.profile6 import (
+        ProfileIdentifier6D,
+        ResponseProfile6D,
+        SelectivityMetrics6D,
+        SelectivityVerdict6D,
+    )
+
+    assert gtsr.ResponseProfile6D is ResponseProfile6D
+    assert gtsr.ProfileIdentifier6D is ProfileIdentifier6D
+    assert gtsr.SelectivityMetrics6D is SelectivityMetrics6D
+    assert gtsr.SelectivityVerdict6D is SelectivityVerdict6D
+    # Planar identifiers remain exported and untouched.
+    assert gtsr.ResponseProfile is not None
+    assert gtsr.ProfileIdentifier is not None

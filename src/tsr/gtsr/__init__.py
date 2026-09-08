@@ -12,6 +12,12 @@ from .observability import (
     symmetric_residual_set_discrepancy,
 )
 from .profile import CellStatus, ProfileIdentifier, ResponseProfile, cell_statuses, excitation_mask
+from .profile6 import (
+    ProfileIdentifier6D,
+    ResponseProfile6D,
+    SelectivityMetrics6D,
+    SelectivityVerdict6D,
+)
 from .projection import ProjectionResult
 from .region import GTSR
 from .response import ResponseOperator
@@ -30,6 +36,10 @@ __all__ = [
     "ResponseOperator",
     "ResponseProfile",
     "ProfileIdentifier",
+    "ResponseProfile6D",
+    "ProfileIdentifier6D",
+    "SelectivityMetrics6D",
+    "SelectivityVerdict6D",
     "CellStatus",
     "excitation_mask",
     "cell_statuses",
