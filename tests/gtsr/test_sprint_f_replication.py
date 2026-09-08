@@ -12,11 +12,14 @@ headline; F-05 is the Frame-weighted negative control; F-06 runs the full suite.
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from tests.gtsr._baseline_models_se3 import SE3FrameWeightedModel
+from tests.gtsr._fit_se3_cells import fit_all_pdiag_cells
 from tests.gtsr._maniskill_data import multiseed_root, sha256
 from tests.gtsr._maniskill_data_se3 import (
     ARMS,
@@ -33,6 +36,7 @@ from tests.gtsr._maniskill_data_se3 import (
     progress_grid_se3,
     se3_rollouts_root,
 )
+from tsr.gtsr.profile6 import SelectivityMetrics6D, SelectivityStatus, SelectivityVerdict6D
 
 pytest.importorskip("h5py")
 threadpoolctl = pytest.importorskip("threadpoolctl")
@@ -115,3 +119,106 @@ def test_F01_progress_grid_q_indices():
         np.concatenate([(i + np.linspace(0.0, 1.0, BINS)) / 4 for i in range(4)]),
     )
     np.testing.assert_array_equal(phase_codes, np.repeat([0, 1, 2, 3], BINS))
+
+
+GATE_ATOL = 5e-3
+
+
+def _frozen_pdiag_row(root, csv_name, model):
+    with (root / "se3_transfer" / csv_name).open(encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("model") == model and row.get("sample_size") == "30":
+                return row
+    raise AssertionError(f"missing frozen N=30 row for {model} in {csv_name}")
+
+
+def _fit_frame_weighted_cell(data, subset):
+    cid_to_idx = {cid: i for i, cid in enumerate(data["mixed_cids"])}
+    indices = [cid_to_idx[cid] for cid in subset["source_condition_ids"]]
+    contexts = data["mixed_contexts"][indices]
+    curves = data["mixed_curves"][indices]
+    model = SE3FrameWeightedModel()
+    progress, phase_codes = progress_grid_se3(BINS)
+    model.fit(contexts, curves, progress, phase_codes)
+    return model.jacobian_diag()
+
+
+def _aggregate(metrics, profiles, seeds, subsets):
+    """Pair keyed/circular by (seed, subset_id) and aggregate (spec §6)."""
+    keyed_cells = []
+    circular_cells = []
+    for seed in seeds:
+        for subset in subsets:
+            sid = subset["subset_id"]
+            keyed_cells.append(metrics.per_cell(profiles[("keyed", seed, sid)]))
+            circular_cells.append(metrics.per_cell(profiles[("circular_honest", seed, sid)]))
+    return metrics.aggregate(keyed_cells, circular_cells)
+
+
+@pytest.mark.slow
+def test_F04_frozen_pdiag_selectivity_headline():
+    root = _require_spectrum()
+    subsets = n30_subsets(load_se3_subsets(root))
+    profiles, success = fit_all_pdiag_cells(root)
+
+    # Every one of the 36 Pdiag fits must succeed (spec F-04).
+    for seed in SE3_SEEDS:
+        for subset in subsets:
+            sid = subset["subset_id"]
+            assert success[("keyed", seed, sid)], f"keyed fit failed for seed={seed} subset={sid}"
+            assert success[("circular_honest", seed, sid)], f"circular fit failed for seed={seed} subset={sid}"
+
+    progress, phase_codes = progress_grid_se3(BINS)
+    metrics = SelectivityMetrics6D(phase_codes)
+    headline = _aggregate(metrics, profiles, SE3_SEEDS, subsets)
+
+    frozen_purity = _frozen_pdiag_row(root, "se3_transfer_purity.csv", "Pdiag finite (SE(3))")
+    frozen_rank = _frozen_pdiag_row(root, "se3_transfer_M2_rank.csv", "Pdiag finite (SE(3))")
+    frozen_trans = _frozen_pdiag_row(root, "se3_transfer_M3_transition.csv", "Pdiag finite (SE(3))")
+
+    # Formal frozen-headline gate (spec §6.3 / F-04), against the frozen CSV values.
+    assert abs(headline["S_yaw"] - float(frozen_purity["S_yaw_mean"])) <= GATE_ATOL
+    assert abs(headline["S_others_max"] - float(frozen_purity["S_others_max_mean"])) <= GATE_ATOL
+    assert abs(headline["purity"] - float(frozen_purity["purity_mean"])) <= GATE_ATOL
+    assert headline["S_yaw"] > 4.0 * headline["S_others_max"]
+    assert headline["rank"] == pytest.approx(float(frozen_rank["accuracy"]))
+    assert headline["transition"] == pytest.approx(float(frozen_trans["accuracy"]))
+    assert headline["rank"] == 1.0 and headline["transition"] == 1.0
+
+    # Two-layer verdict: yaw SELECTIVE; the other five IDENTIFIED + NON_SELECTIVE.
+    mixed = np.vstack([load_se3_rollout(se3_rollouts_root() / "keyed_seed_20260818.h5", BINS)["mixed_contexts"]])
+    verdict = SelectivityVerdict6D(headline)
+    identification = verdict.identify(
+        mixed, observable=np.ones(6, dtype=bool), fit_succeeded=True, meets_gate=np.ones(6, dtype=bool)
+    )
+    selectivity = verdict.selectivity(identification, fit_succeeded=np.ones(6, dtype=bool))
+    assert selectivity[5] is SelectivityStatus.SELECTIVE
+    assert all(s is SelectivityStatus.NON_SELECTIVE for s in selectivity[:5])
+
+
+@pytest.mark.slow
+def test_F05_frame_weighted_negative_control():
+    root = _require_spectrum()
+    subsets = n30_subsets(load_se3_subsets(root))
+    progress, phase_codes = progress_grid_se3(BINS)
+    metrics = SelectivityMetrics6D(phase_codes)
+
+    profiles = {}
+    for arm in ARMS:
+        for seed in SE3_SEEDS:
+            data = load_se3_rollout(se3_rollouts_root() / f"{arm}_seed_{seed}.h5", BINS)
+            for subset in subsets:
+                profiles[(arm, seed, subset["subset_id"])] = _fit_frame_weighted_cell(data, subset)
+
+    headline = _aggregate(metrics, profiles, SE3_SEEDS, subsets)
+    frozen_purity = _frozen_pdiag_row(root, "se3_transfer_purity.csv", "Frame-weighted (SE(3))")
+    frozen_rank = _frozen_pdiag_row(root, "se3_transfer_M2_rank.csv", "Frame-weighted (SE(3))")
+    frozen_trans = _frozen_pdiag_row(root, "se3_transfer_M3_transition.csv", "Frame-weighted (SE(3))")
+
+    # Frame-weighted collapses all six generators to one shared scalar, so it cannot
+    # express per-generator selectivity: rank=0, transition=0, purity ~ 1/6.
+    assert abs(headline["purity"] - float(frozen_purity["purity_mean"])) <= GATE_ATOL
+    assert headline["rank"] == pytest.approx(float(frozen_rank["accuracy"]))
+    assert headline["transition"] == pytest.approx(float(frozen_trans["accuracy"]))
+    assert headline["rank"] == 0.0 and headline["transition"] == 0.0
+    assert abs(headline["purity"] - 1.0 / 6.0) <= GATE_ATOL
