@@ -1,23 +1,20 @@
-# G-TSR Sprint G-00 — 统计结构预注册（B0）
+# G-TSR Sprint G-00 — 统计结构预注册（B0 + B1）
 
-状态：`PREREGISTRATION-STRUCTURE-DRAFT`（2026-09-08）
+状态：`PREREGISTRATION-LOCKED`（2026-09-08，B1 数值已冻结）
 
 ## 0. 本文档的位置
 
-本文档是 G-00 的**统计结构**预注册：冻结"比较什么、怎么聚合、用什么指标、什么方向、什么
-家庭、什么规则"。**不冻结任何数值**。它先于 F.1 implementation plan 的**执行**（步骤 A），并
-在 F.1 产出 development 级 paired difference 之后由 **B1** 填入并冻结数值。
+本文档是 G-00 的**统计预注册**：冻结"比较什么、怎么聚合、用什么指标、什么方向、什么
+家庭、什么规则"，并（经 B1）冻结 `δ_sup`/`δ_eq`/`α`/多重比较校正因子等数值。
 
-执行顺序（不可颠倒）：
+执行顺序（已按序完成，留作 provenance）：
 
-1. **B0（本文档）**：冻结统计结构，`δ_sup`/`δ_eq`/`α`/多重比较校正因子**留空**；
-2. **A**：执行 F.1 implementation plan（Tasks 1–6），产出 development 级原始量与 paired
-   difference；
-3. **B1**：用 development 级证据 + 冻结 planar evidence 填 `δ_sup`/`δ_eq` 等数值，写死进本文
-   档的数值表并锁定，随后才允许任何 confirmatory 判定。
+1. **B0**：冻结统计结构（§1–§9），数值留空；
+2. **A**：执行 F.1 implementation plan（Tasks 1–6），产出 development 级 paired difference；
+3. **B1**：用 development 级证据填 `δ_sup`/`δ_eq`/`α`/校正因子并锁定（§10）。
 
-在 B0 与 B1 都完成前，**不得宣称任何 superiority/equivalence 通过**，也不得生成 §9 的
-prospective confirmatory seeds。
+B0 与 B1 均已完成；§9 prospective confirmatory seeds 仍**未生成**，须在 §9 列出的全部冻结项
+（含 observer 结构、feature manifest、阈值、下游 budget）完成并一次性解封后才生成。
 
 ## 1. 比较族（comparison family）
 
@@ -91,22 +88,26 @@ circular × yaw        -> "fixed"   （equivalence to Fixed）
   confirmatory 地位。
 - **层级（gate-keeping）**：keyed×yaw 的 superiority 是**首层主张**，11 个 equivalence 是
   **次层主张**。此层级顺序冻结；首层未通过时不宣称首层结论，次层结论的解释必须受此层级约束。
-- **控制原则**：对 family-wise error rate 作控制（不逐比较用名义 α）。具体方法（Bonferroni /
-  Holm / 层级 gate-keeping 的 α 分配）与 α 值由 **B1** 填，但"family 定义"与"层级顺序"已在
-  本节冻结。
+- **控制原则（B1 已填）**：全局 α = 0.05，层级 gate-keeping：
+  1. **首层** keyed×yaw superiority：单侧检验，α = 0.05（唯一 superiority 主张，不校正）；
+  2. **次层** 11 个 equivalence：Bonferroni 校正，每个 TOST 的 per-claim 水平
+     `α_eq = 0.05 / 11 ≈ 0.004545`，对应每个 TOST 用 `(1 − 2α_eq)` 置信区间落在
+     `[−δ_eq, +δ_eq]` 内。
 
-## 6. margin 确定原则（数值留 B1）
+## 6. margin 确定原则与冻结值（B1 已填）
 
 margin 必须在查看任何 confirmatory 数据之前确定，且只能来自**冻结 planar evidence**或
-**development 集**，不得查看任一 confirmatory seed 后回填。
+**development 集**，不得查看任一 confirmatory seed 后回填。以下数值已按此原则冻结（单位
+metric-scale，mm-equivalent = ×1000）：
 
-- `δ_eq`（equivalence margin）：可视为"与 oracle 等价"的**最大** paired difference。确定原则
-  由两部分构成——(a) 把非 yaw 五轴当作 Frame-equivalent 的**部署容忍度**，(b) development 集上
-  测得的**噪声尺度**（cell/seed 间 spread）。数值在 B1 填。
-- `δ_sup`（superiority margin）：宣称 phase-selectivity 真实存在所需的**最小**优于 Frame 的量。
-  确定原则由 Frame 控制自身残差尺度与部署收益阈值构成。数值在 B1 填。
-- 二者**不得**在 F.1 执行过程中或看完结果后回填；B1 必须记录其来源（planar hash 或 development
-  统计量）与冻结时点。
+- `δ_eq`（equivalence margin，分层）：由 development 集测得的噪声尺度 + 部署容忍度确定。
+  - 非 yaw 五轴（du,dv,dw,roll,pitch，两个 arm，equivalence to Frame）：**δ_eq = 0.003**；
+  - circular × yaw（equivalence to Fixed）：**δ_eq = 0.008**。
+- `δ_sup`（superiority margin，keyed × yaw）：**δ_sup = 0.005**。
+- 依据（development 集实测，见 F.1 执行记录）：非 yaw 五轴 |diff| ≤ 0.0018、seed std ≤ 0.0007；
+  circular yaw diff = +0.0054 ± 0.0004；keyed yaw diff = −0.0232 ± 0.0011。margin 由这些
+  development 统计量确定，**非**由 confirmatory 数据回填；冻结时点 2026-09-08（在 §9 confirmatory
+  seeds 生成之前）。
 
 ## 7. 排除规则（结构）
 
@@ -143,14 +144,18 @@ prospective confirmatory seeds 在以下全部冻结并**一次性解封**之前
 size 共同决定，并在解封前预注册。**development seeds `{20260818,20270818,20280818}` 已用于
 Sprint F 开发，不能重新标记为 confirmatory。**
 
-## 10. 与 B1 的边界
+## 10. B1 冻结数值（已完成，2026-09-08）
 
-B1 只做一件事：把下列**数值**填入并冻结（其余结构本节已定）：
+B1 已把下列数值填入并冻结；本文档自此升级为 `PREREGISTRATION-LOCKED`：
 
-- `δ_sup`（keyed×yaw superiority margin）；
-- `δ_eq`（equivalence margin，可逐 generator 或统一）；
-- α 与多重比较方法/校正因子（§5）；
-- 排除规则中若含数值阈值（§7）；
-- 逐比较的置信区间构造方法（配对 exact / sign-flip / bootstrap，及其对 n=3 seed 的适用性说明）。
+| 项 | 冻结值 |
+| --- | --- |
+| `δ_sup`（keyed × yaw superiority） | `0.005` |
+| `δ_eq`（非 yaw 五轴 × 两个 arm，equivalence to Frame） | `0.003` |
+| `δ_eq`（circular × yaw，equivalence to Fixed） | `0.008` |
+| 全局 α | `0.05` |
+| 多重比较 | 层级 gate-keeping：superiority 单侧 α=0.05；11 个 equivalence 用 Bonferroni `α_eq = 0.05/11 ≈ 0.004545` |
+| 置信区间方法 | development（n=3）：paired t-interval over seeds（df=2）；confirmatory（n≥6）：exact 双侧 sign-flip |
+| 排除规则数值阈值 | 无额外数值阈值（`optimization_success == False` 为布尔判据，见 §7） |
 
-B1 完成后，本文档升级为 `PREREGISTRATION-LOCKED`；在此之前任何"通过/不通过"判定都无效。
+之后任何"通过/不通过"判定必须引用本节冻结值；在 confirmatory seeds（§9）解封前不得改动。
