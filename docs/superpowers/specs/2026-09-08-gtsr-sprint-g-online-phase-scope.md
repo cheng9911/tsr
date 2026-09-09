@@ -127,7 +127,21 @@ class OnlinePhaseObserver:
 
 ## 6. 数据、拆分与独立性
 
-### 6.1 Primary：冻结 6D SE(3) 轨迹
+### 6.0 数据角色
+
+Sprint G 明确区分三个数据层级，避免把开发证据冒充 confirmatory 证据：
+
+| 层级 | 数据 | 独立单位 | 角色 |
+| --- | --- | --- | --- |
+| development set | 冻结 6D SE(3) seeds `{20260818, 20270818, 20280818}` | seed（n=3） | 开发、复现、审查与 LOSO 内折评估；不得称为未见过的 outer test |
+| external prior | planar 5-seed non-oracle progress（§6.3） | seed（n=5） | 范围先验与基线边界，冻结于 scope-lock |
+| prospective confirmatory set | 尚未收集的新 execution seeds | seed | 一次性解封的外部确认；见 §6.4 |
+
+三个层级不可互相替代。LOSO 在 development set 上得到的是**开发级证据**，用于冻结 observer、
+特征、归一化、阈值与统计方案；confirmatory 结论只能来自 §6.4 的新 seeds，不能用 episode/frame
+数量伪装独立 seed 数量。
+
+### 6.1 Primary：冻结 6D SE(3) 轨迹（development set）
 
 使用 Sprint F 已校验的 keyed/circular_honest rollouts，execution seeds
 `{20260818, 20270818, 20280818}`。数据完整性、manifest hashes 和 usable 语义直接复用
@@ -139,6 +153,9 @@ F-01，不重新选 episode。
 - 整条 episode 是最小拆分单位，同一 episode 的帧不得跨 train/test；
 - 三个折各自保留一个完整 seed，最终以 seed 为独立单位报告 `n=3`；
 - keyed/circular_honest 均必须报告，不得只选更容易的 arm。
+
+此 LOSO 是 development-set 内的**开发级评估**：它的输出用于冻结 observer、阈值与统计方案，
+本身不构成 confirmatory 结论（见 §6.4）。
 
 ### 6.2 Fold-specific frozen response artifacts
 
@@ -153,8 +170,9 @@ Sprint F 生成的 36 个 cell profile 是复现计算单元，不是唯一的�
 - G-05 中“不重拟合”的精确含义是：评估 held-out seed 时不使用其轨迹、标签或误差
   更新 observer 或 response artifact。
 
-这些 fold-specific artifacts 还需要真实 held-out adequacy 检查；Sprint F 中由常量 true 生成的
-`CellStatus.IDENTIFIED` 不能作为该检查的证据。
+这些 fold-specific artifacts 还需要真实 held-out adequacy 检查；该检查由 Sprint F.1
+held-out adequacy 附录（`2026-09-08-gtsr-sprint-f1-adequacy-annex.md`）在 development set 上
+收口，Sprint F 中由常量 true 生成的 `CellStatus.IDENTIFIED` 不能作为该检查的证据。
 
 ### 6.3 Supporting evidence：planar non-oracle progress
 
@@ -171,6 +189,25 @@ arc-length `5.500`，keypoint `8.894`，DTW-position `3.188`。DTW-position 使�
 
 这份证据只说明 response law 不是 solver 语义标签的人工产物，不等于已经完成
 6D causal online observer。
+
+### 6.4 Prospective confirmatory set（预注册确认集）
+
+Sprint G 的 confirmatory 结论需要新的 execution seeds，它们在以下事项全部冻结并一次性解封
+之前**不生成**：
+
+- observer 结构与算法/超参数；
+- 输入 feature manifest 与禁用字段；
+- 数据归一化方案；
+- confidence calibration 规则；
+- abstention threshold；
+- phase/progress acceptance gates 的全部阈值；
+- 下游 non-inferiority budget；
+- 排除与失败规则。
+
+统计独立单位是 execution seed。exact sign-flip 的离散分辨率（G-00 §5）把最低样本量抬到
+`n≥9`（双侧）或 `n≥8`（两个 one-sided 的 TOST）；最终 confirmatory seed 数由 G-00 §11 预先
+冻结的功效/精度模拟确定，并在解封前预注册，且设计下限冻结为 `n≥9`。不得用 episode 或 frame
+数量替代独立 seed 数。
 
 ## 7. 对照组
 
@@ -249,8 +286,9 @@ arc-length `5.500`，keypoint `8.894`，DTW-position `3.188`。DTW-position 使�
 
 G-04/G-05 暂不写入未经证据支持的绝对数字。这不是放宽验收：G-00 要求在编写
 implementation plan 之前，只使用冻结 planar evidence 或额外独立 development data 预注册数字。
-当前三个 6D seeds 都属于 outer-test universe，不存在可以先观看的“development fold”；它们只能
-用于 fold-local 训练/校准和对应 outer fold 的一次最终评估。
+现有三个 6D seeds `{20260818, 20270818, 20280818}` 已用于 Sprint F 开发、复现与审查，因此是
+**development set**（§6.0），其 LOSO 内折评估是开发级证据，不能称为未见过的 outer test；
+confirmatory 结论必须来自 §6.4 的新 seeds。
 
 ## 10. 论文主张合同
 
