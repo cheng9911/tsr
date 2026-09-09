@@ -112,8 +112,8 @@ circular × yaw        -> "fixed"   （equivalence to Fixed）
 
 margin 必须在查看任何 confirmatory 数据之前确定，且只能来自**冻结 planar evidence**或
 **development 集**，不得查看任一 confirmatory seed 后回填。以下数值已按此原则冻结（单位
-metric-scale；平移分量 1 单位 = 1 mm，旋转分量 1 单位按 `SE3_METRIC_SCALE` 的 `0.03 m/rad`
-力臂折算，1 mm-equivalent = 0.0333 rad ≈ 1.91°）：
+metric-scale；平移分量采用米，`0.001 metric-scale = 1 mm-equivalent`（故 `0.003 = 3 mm-equivalent`），
+旋转分量 1 单位按 `SE3_METRIC_SCALE` 的 `0.03 m/rad` 力臂折算，1 mm-equivalent = 0.0333 rad ≈ 1.91°）：
 
 - `δ_eq`（equivalence margin，分层）：由 development 集测得的噪声尺度 + 部署容忍度确定。
   - 非 yaw 五轴（du,dv,dw,roll,pitch，两个 arm，equivalence to Frame）：**δ_eq = 0.003**；
@@ -128,14 +128,16 @@ metric-scale；平移分量 1 单位 = 1 mm，旋转分量 1 单位按 `SE3_METR
 
 ### 6.1 margin 的工程意义（2026-09-09 补充）
 
-以下说明各 margin 在键插入任务里为何分别是"可忽略误差"或"最小有意义收益"，以免审稿人把
-margin 读成"看完结果后包住观测值"。
+以下说明各 margin 在键插入任务里的**暂定 metric-scale 工程解释**（为何可视为"可忽略误差"或
+"最小有意义收益"），以免审稿人把 margin 读成"看完结果后包住观测值"。这些解释在任务级锚点
+钉死前是**暂定**的（见本节末），是否等价/优越仍以 prospective confirmatory TOST 为准。
 
 - **非 yaw 五轴 `δ_eq = 0.003`**：du/dv/dw 是平移（3 mm），roll/pitch 是绕非插入轴的旋转
   （0.003/0.03 = 0.1 rad ≈ 5.7°）。键插入的主约束是插入轴（z）对齐，非 yaw 五轴是"标称帧
   本身的对齐残差"，3 mm / 5.7° 属**插入可忽略误差**。它同时**严格大于** development 噪声
-  （comparison mean ≤ 1.8 mm、max seed SD ≈ 0.7 mm），因此"落在 [−0.003,+0.003]"是真实等价，
-  而非噪声太粗造成的虚等价。
+  （comparison mean ≤ 1.8 mm、max seed SD ≈ 0.7 mm），使后续 confirmatory equivalence 判定具有
+  可分辨性（margin 高于噪声尺度，不会因噪声太粗而虚等价）；是否达到等价仍以 prospective
+  confirmatory TOST 为准。
 - **circular × yaw `δ_eq = 0.008`**（0.008/0.03 = 0.267 rad ≈ 15.3°）：circular arm 是圆键/
   无键，绕插入轴自转不改变插入状态（§3 endpoint 语义），故该臂对 yaw **应当无响应**，主控制是
   Fixed（`α_yaw≈0`）。≈15° 是"yaw 不敏感"的宽容差：development 上 fitted 相对 Fixed 的 yaw
@@ -147,10 +149,11 @@ margin 读成"看完结果后包住观测值"。
   有意义收益"定义为 fitted 相对 Frame 至少改善 9.5°：它严格大于 development 噪声，又远小于
   观测到的 −0.0232（≈0.77 rad ≈ 44°）效果，使 superiority 是"确有收益"而非"数值上略优"。
 
-**待钉死的任务级锚点**：键/槽实际装配间隙、成功判据的位置/角度容差、仿真/传感器分辨率、控制
-器允许误差——这些是 margin 工程意义的最终依据，目前在仓库中**尚未以数值形式固定**，列为 §11
-的 confirmatory 设计项；在本节中，margin 的"可忽略/最小有意义"论证以 metric-scale 约定 +
-development 噪声地板为据，**不**以 development 观测值反推 margin。
+**任务级锚点与"暂定"标注**：键/槽实际装配间隙、成功判据的位置/角度容差、仿真/传感器分辨率、
+控制器允许误差——这些是 margin 工程意义的最终依据，目前在仓库中**尚未以数值形式固定**，列为
+§11 的 confirmatory 设计项。因此，上文的"可忽略误差""最小有意义收益"是**暂定的 metric-scale
+operational interpretation**，以 metric-scale 约定 + development 噪声地板为据，**不**以
+development 观测值反推 margin；是否达到等价/优越仍以 prospective confirmatory TOST 为准。
 
 ## 7. 排除规则（结构，2026-09-09 修正 optimizer failure 规则）
 
@@ -205,7 +208,7 @@ B1 已把下列数值填入并冻结。本文档状态为 `ADEQUACY-MARGINS-LOCK
 | `δ_eq`（circular × yaw，equivalence to Fixed） | `0.008` |
 | 全局 α | `0.05` |
 | 多重比较 | 强 gate-keeping：superiority 单侧 α=0.05（首层）；11 个 equivalence（次层，仅首层通过后获 confirmatory 资格）用 Bonferroni `α_eq = 0.05/11 ≈ 0.004545` |
-| 假设检验方法 | development（n=3）：paired t-interval over seeds（df=2，仅描述性）；confirmatory：TOST = 两个 one-sided exact sign-flip（每侧 `α_eq`），最低 `n≥8`、推荐 `n≥9`（§5） |
+| 假设检验方法 | development（n=3）：paired t-interval over seeds（df=2，仅描述性）；confirmatory：TOST = 两个 one-sided exact sign-flip（每侧 `α_eq`）；数学可计算下限 `n=8`，本预注册设计下限冻结为 `n≥9`，最终确切 n 由 §11 功效/精度模拟确定 |
 | 排除规则 | 外部数据损坏可替换；`optimization_success == False` 计为 confirmatory gate failure 并报告 failure rate（§7） |
 
 之后任何"通过/不通过"判定必须引用本节冻结值；在 confirmatory seeds（§9）解封前不得改动。

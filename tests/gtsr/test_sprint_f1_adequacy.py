@@ -11,6 +11,8 @@ differences without freezing any margin (margins are G-00 / B1).
 
 from __future__ import annotations
 
+import csv
+import json
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +32,10 @@ from tests.gtsr._maniskill_data_se3 import (
     ARMS,
     EXPECTED_ISOLATED_CONTEXTS_6D,
     GENERATOR_NAMES,
+    SE3_CONTEXT_MANIFEST_SHA256,
+    SE3_EXPERIMENT_SHA256,
     SE3_SEEDS,
+    SE3_SUBSET_MANIFEST_SHA256,
     load_se3_isolated,
     progress_grid_se3,
     se3_rollouts_root,
@@ -45,6 +50,40 @@ from tsr.gtsr.profile6 import (
 pytest.importorskip("h5py")
 
 BINS = 25
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SOURCE_DATA_JSON = (
+    REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-09-08-gtsr-sprint-f1-adequacy-source-data.json"
+)
+SOURCE_DATA_CSV = (
+    REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-09-08-gtsr-sprint-f1-adequacy-source-data.csv"
+)
+
+
+def _primary_diff_per_seed(artifacts, progress):
+    """Recompute the 36 per-seed primary paired differences (2 arms x 3 seeds x 6 generators).
+
+    Each arm x seed first aggregates its 6 N=30 subset cell summaries into one per-seed
+    summary, then selects the single primary paired difference per generator via the
+    frozen ``primary_oracle`` direction (never "pick the better diff").
+    """
+    primary_diff = {}
+    for arm in ARMS:
+        for seed in SE3_SEEDS:
+            subset_ids = sorted({k[2] for k in artifacts if k[:2] == (arm, seed)})
+            assert len(subset_ids) == 6
+            isolated = load_se3_isolated(se3_rollouts_root() / f"{arm}_seed_{seed}.h5", BINS)
+            cell_summaries = [
+                adequacy_summary(artifacts[(arm, seed, subset_id)], progress, isolated)
+                for subset_id in subset_ids
+            ]
+            per_seed = aggregate_cells(cell_summaries)
+            for generator, values in per_seed.items():
+                direction = primary_oracle(arm, generator)
+                primary_diff[(arm, seed, generator)] = values[
+                    "diff_vs_frame" if direction == "frame" else "diff_vs_fixed"
+                ]
+    return primary_diff
 
 
 def _require_spectrum() -> Path:
@@ -275,5 +314,50 @@ def test_F1_held_out_adequacy_no_constant_status():
                     "diff_vs_frame" if direction == "frame" else "diff_vs_fixed"
                 ]
 
+    # Exactly the full cartesian product: 2 arms x 3 seeds x 6 generators, no gaps or extras.
+    assert len(primary_diff) == 36
+    assert set(primary_diff) == {(a, s, g) for a in ARMS for s in SE3_SEEDS for g in GENERATOR_NAMES}
+
     # Six generators produce real quantities; the superiority/equivalence decision
     # with delta margins is frozen by G-00 (B1) and asserted there, not here.
+
+
+@pytest.mark.slow
+def test_F1_source_data_contract_matches_frozen_record():
+    root = _require_spectrum()
+    artifacts = fit_all_pdiag_artifacts(root)
+    progress, _ = progress_grid_se3(BINS)
+
+    frozen = json.loads(SOURCE_DATA_JSON.read_text(encoding="utf-8"))
+    assert frozen["frozen_inputs"]["SE3_CONTEXT_MANIFEST_SHA256"] == SE3_CONTEXT_MANIFEST_SHA256
+    assert frozen["frozen_inputs"]["SE3_EXPERIMENT_SHA256"] == SE3_EXPERIMENT_SHA256
+    assert frozen["frozen_inputs"]["SE3_SUBSET_MANIFEST_SHA256"] == SE3_SUBSET_MANIFEST_SHA256
+
+    # 36 unique arm x seed x generator records, exactly the cartesian product.
+    assert len(frozen["per_seed"]) == 36
+    frozen_keys = {(r["arm"], int(r["seed"]), r["generator"]) for r in frozen["per_seed"]}
+    assert frozen_keys == {(a, s, g) for a in ARMS for s in SE3_SEEDS for g in GENERATOR_NAMES}
+
+    # 36 artifact hashes match the freshly regenerated artifacts bit-for-bit.
+    live_hashes = {
+        f"{arm}/{seed}/{subset_id}": art["artifact_sha256"]
+        for (arm, seed, subset_id), art in artifacts.items()
+    }
+    assert len(live_hashes) == 36
+    assert frozen["artifact_sha256"] == live_hashes
+
+    # Live-recomputed 36 primary diffs match the frozen JSON record.
+    live = _primary_diff_per_seed(artifacts, progress)
+    frozen_diff = {(r["arm"], r["seed"], r["generator"]): r["primary_diff"] for r in frozen["per_seed"]}
+    assert set(live) == set(frozen_diff)
+    for key in live:
+        assert live[key] == pytest.approx(frozen_diff[key], rel=1e-12, abs=1e-15)
+
+    # CSV agrees with the JSON field-for-field on the 36 primary diffs.
+    with SOURCE_DATA_CSV.open(newline="", encoding="utf-8") as handle:
+        csv_rows = list(csv.DictReader(handle))
+    assert len(csv_rows) == 36
+    csv_diff = {(r["arm"], int(r["seed"]), r["generator"]): float(r["primary_diff"]) for r in csv_rows}
+    assert set(csv_diff) == set(frozen_diff)
+    for key in csv_diff:
+        assert csv_diff[key] == pytest.approx(frozen_diff[key], rel=1e-12, abs=1e-15)
