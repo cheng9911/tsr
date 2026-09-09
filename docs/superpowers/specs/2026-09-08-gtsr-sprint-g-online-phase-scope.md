@@ -1,6 +1,8 @@
 # G-TSR Sprint G — Causal Online Phase Observer 范围契约
 
-状态：`SCOPE-DRAFT`（2026-09-08）
+状态：`SCOPE-STRUCTURE-LOCKED` / `THRESHOLDS-PENDING`（2026-09-09，结构已冻结：观察者
+confirmatory 比较族、multiplicity、排除规则已入文 §8.3/§9；数值/阈值/预算由 §6.4 freeze list
+（本次 step 5）冻结，confirmatory 设计项由 G-00 §11（本次 step 6）冻结，之后才解封确认集）
 
 前置：Sprint F 已 `REPLICATION-LOCKED`，在 oracle phase 下冻结 6D response-profile 拟合与
 selectivity 复现。本 Sprint 只解除这一个 oracle 假设：从运行时可观测、因果前缀信号中输出
@@ -196,12 +198,14 @@ Sprint G 的 confirmatory 结论需要新的 execution seeds，它们在以下�
 之前**不生成**：
 
 - observer 结构与算法/超参数；
+- observer confirmatory 比较族与 multiplicity 结构（§8.3）；
 - 输入 feature manifest 与禁用字段；
 - 数据归一化方案；
 - confidence calibration 规则；
 - abstention threshold；
 - phase/progress acceptance gates 的全部阈值；
-- 下游 non-inferiority budget；
+- G-04 superiority margin `δ_sup_obs`；
+- G-05 下游 non-inferiority budget `B`；
 - 排除与失败规则。
 
 统计独立单位是 execution seed。exact sign-flip 的离散分辨率（G-00 §5）把最低样本量抬到
@@ -258,6 +262,45 @@ Sprint G 的 confirmatory 结论需要新的 execution seeds，它们在以下�
 任务 quotient 仍绑定于真实 physical key-clear event，不绑定于 predicted q=2，否则 observer 可以
 通过移动评分边界虚假降低误差。
 
+### 8.3 Confirmatory 比较族与 multiplicity（结构）
+
+本 Sprint 的 confirmatory 结论由**独立的 observer 比较族**承载，与 G-00 B0/B1 的 response-law
+adequacy 比较族（12 primary comparison）**不是同一族、不复用其 margin**：adequacy 族回答"冻结
+response law 在 oracle phase 下是否 adequate"，observer 族回答"只用因果前缀的 observer 是否
+保留主要下游性能"。两者**共用**同一批 prospective confirmatory seeds（§6.4），但各自预注册、
+各自校正、分开报告；若两族在同一报告中共现，联合 familywise 控制（合计 α 分配）由 §6.4 freeze
+list 冻结。
+
+observer confirmatory 比较族（按 arm 分层，2 arm × 2 下游主张）：
+
+| arm | 主张 | 主控制/oracle | 方向 | 统计量（paired，per seed） |
+| --- | --- | --- | --- | --- |
+| keyed | G-04 superiority | Normalized time | err_obs < err_time | `Δ_gain = err_obs − err_time` |
+| circular_honest | G-04 superiority | Normalized time | err_obs < err_time | `Δ_gain = err_obs − err_time` |
+| keyed | G-05 fidelity bound | Oracle phase | `Δ_deg ≤ B` | `Δ_deg = err_obs − err_oracle` |
+| circular_honest | G-05 fidelity bound | Oracle phase | `Δ_deg ≤ B` | `Δ_deg = err_obs − err_oracle` |
+
+- **G-04 superiority**：对每个 arm，跨 n 个独立 seed 的 paired `Δ_gain`（同一 seed 上 observer 与
+  normalized-time 的 physical-timeline task error 之差）做单侧检验，主张 observer 严格优于
+  normalized-time baseline；superiority margin `δ_sup_obs`（"最小有意义收益"）由 §6.4 freeze
+  list 冻结，结构冻结为"`Δ_gain` 的 CI 上界 `< −δ_sup_obs`"。
+- **G-05 fidelity bound**：对每个 arm，跨 seed 的 paired `Δ_deg` 主张"相对 oracle-phase 的退化
+  不超过预注册预算 `B`"。这是**单向 non-inferiority 风格**主张，属 G-00 §1 明示"须在独立 scope
+  另立预注册"的那类，故 budget `B` 由 §6.4 freeze list 冻结（§9 G-05），不复用 adequacy 的 `δ_eq`。
+- 独立单位是 execution seed（§6.4，n ≥ 9）；per-seed 差异先聚合为 per-seed 统计量，再跨 seed
+  检验（聚合顺序同 G-00 §2）。keyed 与 circular_honest 分开评价、分开报告。
+
+**多重比较（结构）**：全局 α = 0.05，强 gate-keeping：
+
+1. **首层** G-04 superiority（2 arm）；arm 是否再分层校正（Bonferroni 上限 `α/2`）与确切
+   α-spending 由 §6.4 freeze list 冻结；
+2. **次层** G-05 fidelity bound（2 arm），仅当首层 G-04 通过后获得 confirmatory 资格，否则只作
+   描述性报告。
+
+§8.1 的直接观察者指标（phase macro-F1、progress MAE、latency、abstention）是**接受阈值门**
+（pass/fail，不消耗 α），但每个阈值须由 §6.4 freeze list 预注册；G-04 的"阈值全部通过"是首层门
+的前置条件。
+
 ## 9. 硬门
 
 - **G-00 证据入场门**：实施计划前冻结 primary observer 的 feature manifest、标签映射、
@@ -274,18 +317,29 @@ Sprint G 的 confirmatory 结论需要新的 execution seeds，它们在以下�
   输出一致；帧级随机 split 必须由测试显式拒绝。
 - **G-04 observer 有效性**：primary observer 的预注册 phase/progress/latency/abstention 阈值全部
   通过，且在每个独立 seed 上的 physical-timeline task error 均优于 normalized-time
-  baseline。具体阈值由 G-00 冻结，不在 implementation plan 中改动。
+  baseline（superiority，§8.3）。具体阈值与 superiority margin `δ_sup_obs` 由 §6.4 freeze list
+  冻结，不在 implementation plan 中改动。
 - **G-05 下游保真**：评估时不重拟合 §6.2 的 fold-specific frozen profile；learned-phase 的
   response/task error 相对
-  oracle-phase 的 paired degradation 不超过 G-00 预注册预算，并保持 key-clear 前后 yaw
-  action 的正确切换方向。
+  oracle-phase 的 paired degradation 不超过预注册预算 `B`（§8.3 fidelity bound），并保持
+  key-clear 前后 yaw action 的正确切换方向。budget `B` 由 §6.4 freeze list 冻结。
 - **G-06 失败可见**：低置信、越分布或观测缺失时必须 abstain；禁止静默回退到
   oracle label、episode length 或未来对齐。
 - **G-07 回归门**：Sprint F F-01–F-06、planar identification/baselines、`tests/tsr/` 和几何
   内核全部无回退；Ruff 与 `git diff --check` 干净。
 
-G-04/G-05 暂不写入未经证据支持的绝对数字。这不是放宽验收：G-00 要求在编写
-implementation plan 之前，只使用冻结 planar evidence 或额外独立 development data 预注册数字。
+**观察者排除规则（结构，对齐 G-00 §7）**：
+
+- **外部数据损坏**（manifest SHA 不符、rollout 损坏、文件不可读）：按冻结规则可替换，成对报告；
+- **方法失败**：observer 拟合失败（ordinal classifier / per-phase ridge 无法拟合）或 calibration
+  失败计为 confirmatory gate failure，报告 failure rate，不得静默删除或当普通排除；
+- **abstention 不是排除**：abstained frame 仍进入计分（§8.1），不得从分母删除；若某 seed/arm 的
+  abstention coverage 超过 §6.4 freeze list 预注册阈值，该 seed/arm 的 G-04 判定为 gate failure；
+- **不可观测**：force 通道缺失于"含力"消融时，该消融报告"不可评价"，不进入主判定。
+
+G-04/G-05 的结构（比较族、multiplicity、排除规则，§8.3）已冻结；其绝对数字（阈值、margin、
+budget）暂不写入，待 §6.4 freeze list 只使用冻结 planar evidence 或额外独立 development data
+预注册。这不是放宽验收：G-00 要求在编写 implementation plan 之前预注册这些数字。
 现有三个 6D seeds `{20260818, 20270818, 20280818}` 已用于 Sprint F 开发、复现与审查，因此是
 **development set**（§6.0），其 LOSO 内折评估是开发级证据，不能称为未见过的 outer test；
 confirmatory 结论必须来自 §6.4 的新 seeds。
