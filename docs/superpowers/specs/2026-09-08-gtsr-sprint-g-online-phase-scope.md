@@ -94,6 +94,28 @@ event 独立由真值几何事件定义，用于对齐评分；不能用 observe
 `causal_delta` 是已知任务 context，但 primary observer **不输入**它；它只可作为消融项，
 检查 phase 估计是否偶然依赖 intervention 标识。
 
+### 4.1 冻结的输入 feature manifest
+
+primary observer 的输入特征固定为 8 维，顺序、定义与单位冻结如下（由 §4 可观测量派生；任何
+重排、增删或单位改动都视为破坏冻结）：
+
+| # | 特征 | 定义 | 单位 |
+| ---: | --- | --- | --- |
+| 0 | `trans_dist` | `‖t‖₂`，`(t, r) = se3_log(T_socket⁻¹ T_peg)` | m |
+| 1 | `trans_z` | `|t_z|` | m |
+| 2 | `trans_radial` | `hypot(t_x, t_y)` | m |
+| 3 | `rot_angle` | `‖r‖₂`（`wrap_angle` 后） | rad |
+| 4 | `rot_yaw` | `|r_z|` | rad |
+| 5 | `rot_rollpitch` | `hypot(r_x, r_y)` | rad |
+| 6 | `tcp_disp` | `‖tcp_pos_t − tcp_pos_{t−1}‖₂`（首帧 0） | m |
+| 7 | `force_mag` | `‖contact_force[:3]‖₂`（无 force 通道为 0） | N |
+
+- 平移特征为原始米、旋转特征为原始弧度；fold-local standardization（只用该 LOSO fold 的两个
+  训练 seed 的均值/方差做 z-score，见 G-03）在拟合前应用，因此原始尺度只影响可读性、不影响归一化
+  后特征。归一化参数随 fold-specific artifact 一并冻结，不得用 held-out 或 confirmatory seed 计算。
+- `force_mag` 是唯一依赖 force 通道的特征。primary observer **不含力**（`force_mag ≡ 0`，实际有效
+  特征为 7 维）；含力版本只作消融（§4），保留 8 维槽位使消融与主判定的特征向量逐位对应。
+
 ## 5. Causal streaming API
 
 建议新模块 `src/tsr/gtsr/phase.py`：
