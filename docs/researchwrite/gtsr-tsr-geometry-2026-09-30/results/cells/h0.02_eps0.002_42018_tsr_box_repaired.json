@@ -1,0 +1,130 @@
+{
+  "case": "h0.02_eps0.002",
+  "pitch": 0.02,
+  "tolerance": 0.002,
+  "seed": 42018,
+  "method": "tsr_box_repaired",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 1.0,
+    "expected_valid_fraction": 1.0,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.0,
+    "mean_excess_mm": 1.2923689896027213e-17,
+    "maximum_excess_mm": 8.673617379884035e-16,
+    "correction_fraction": 0.8393,
+    "mean_correction_mm": 5.56140008430966
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 100,
+      "edges_checked": 100,
+      "vertices": 65,
+      "planning_seconds": 0.002489211969077587,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 137,
+      "accepted_proposals": 108,
+      "edges_checked": 109,
+      "vertices": 71,
+      "planning_seconds": 0.002713202964514494,
+      "path_length_mm_equivalent": 63.938535970673,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 137,
+      "accepted_proposals": 108,
+      "edges_checked": 109,
+      "vertices": 71,
+      "planning_seconds": 0.002713202964514494,
+      "path_length_mm_equivalent": 63.938535970673,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 6.584404036402702e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      0.0005189147250866354,
+      -0.373078514993181,
+      -0.00745983836898124
+    ],
+    [
+      0.004102333707596573,
+      -0.2507322737485227,
+      -0.004347385008083937
+    ],
+    [
+      0.005705799573305818,
+      -0.095909046745657,
+      -0.0009041759293490262
+    ],
+    [
+      0.005078386310771179,
+      0.06424041624628893,
+      0.0026346497446631655
+    ],
+    [
+      -0.0008890718191901679,
+      0.04349188640660537,
+      0.0026792829800467203
+    ],
+    [
+      -0.0020516861602777187,
+      -0.014870981038572095,
+      0.0017025803792285583
+    ],
+    [
+      -0.004224610273214391,
+      -0.012333745510561656,
+      0.001176282385231141
+    ],
+    [
+      -0.00544142578780716,
+      0.05784744308890388,
+      -0.0008430511382219227
+    ],
+    [
+      -0.007771739335748967,
+      0.1867934094835442,
+      0.0031073010921210805
+    ],
+    [
+      -0.01043549829548099,
+      0.3422187627534351,
+      0.004844375255068702
+    ],
+    [
+      -0.010128715832879328,
+      0.39802543627227194,
+      0.00996050872544544
+    ],
+    [
+      -0.004385026754358812,
+      0.4558521339142912,
+      0.00998290303545457
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "case": "h0.02_eps0.0005",
+  "pitch": 0.02,
+  "tolerance": 0.0005,
+  "seed": 42000,
+  "method": "tsr_union_4",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.1729,
+    "expected_valid_fraction": 0.16666666666666666,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.2514183652027737,
+    "mean_excess_mm": 1.3922556406280016,
+    "maximum_excess_mm": 4.904286142135171,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 21,
+      "edges_checked": 21,
+      "vertices": 8,
+      "planning_seconds": 0.0008005690760910511,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": false,
+      "proposals_used": 512,
+      "accepted_proposals": 82,
+      "edges_checked": 82,
+      "vertices": 28,
+      "planning_seconds": 0.0030488789780065417,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 610,
+      "accepted_proposals": 99,
+      "edges_checked": 100,
+      "vertices": 41,
+      "planning_seconds": 0.003695894032716751,
+      "path_length_mm_equivalent": 63.79054382624877,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 5.878601223230362e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      0.0016478763779264826,
+      -0.3407968489710901,
+      -0.006763732941290014
+    ],
+    [
+      0.007446743041494017,
+      -0.3828681497633974,
+      -0.007646994229269963
+    ],
+    [
+      0.007659962102709736,
+      -0.300303408974091,
+      -0.006383404187143343
+    ],
+    [
+      0.008638852551850682,
+      -0.1423121386378639,
+      -0.0028370460359731426
+    ],
+    [
+      0.006541442114826803,
+      0.013633593196345745,
+      0.00027963574263159714
+    ],
+    [
+      0.000631452333265693,
+      -0.018450271731353017,
+      -0.00010191875152923158
+    ],
+    [
+      -0.001079160130675159,
+      -0.06981729012392734,
+      -0.0015541716064692481
+    ],
+    [
+      -0.006606309048820477,
+      -0.014571721983704766,
+      9.013959200343319e-05
+    ],
+    [
+      -0.009091914531387133,
+      0.035837972728812284,
+      0.0004437344931406251
+    ],
+    [
+      -0.006958585946844193,
+      0.1869207373011632,
+      0.0037460832897746273
+    ],
+    [
+      -0.004468559073402713,
+      0.3341071598717538,
+      0.006955804068802552
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

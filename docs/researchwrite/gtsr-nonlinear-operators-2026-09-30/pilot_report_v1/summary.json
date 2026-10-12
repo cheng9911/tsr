@@ -1,0 +1,94 @@
+{
+  "audit": {
+    "records": {
+      "samples": 1536,
+      "jacobians": 96,
+      "projections": 48,
+      "connections": 384,
+      "approximations": 8
+    },
+    "unique_queries": 16,
+    "unverified_references": 0,
+    "analytic_pair_max_distance_difference": 0.0,
+    "analytic_pair_count_mismatches": 0,
+    "source_snapshot_files": 33
+  },
+  "methods": {
+    "gtsr_analytic": {
+      "projection_queries": 16,
+      "exceptions": 0,
+      "optimizer_success": 16,
+      "reference_eligible": 16,
+      "reference_correct": 16,
+      "max_absolute_gap": 3.806051844115909e-11,
+      "median_ms": 21.87389344908297,
+      "median_map_calls": 33.0,
+      "median_jacobian_calls": 32.0,
+      "samples": 512,
+      "valid_samples": 512,
+      "max_sample_matrix_difference": 0.0,
+      "max_jacobian_error": 6.113376471716947e-11,
+      "connections": {
+        "coordinate": {
+          "total": 64,
+          "valid": 64
+        },
+        "pose_linear": {
+          "total": 64,
+          "valid": 38
+        }
+      }
+    },
+    "explicit_analytic": {
+      "projection_queries": 16,
+      "exceptions": 0,
+      "optimizer_success": 16,
+      "reference_eligible": 16,
+      "reference_correct": 16,
+      "max_absolute_gap": 3.806051844115909e-11,
+      "median_ms": 21.406790998298675,
+      "median_map_calls": 33.0,
+      "median_jacobian_calls": 32.0,
+      "samples": 512,
+      "valid_samples": 512,
+      "max_sample_matrix_difference": 0.0,
+      "max_jacobian_error": 6.113376471716947e-11,
+      "connections": {
+        "coordinate": {
+          "total": 64,
+          "valid": 64
+        },
+        "pose_linear": {
+          "total": 64,
+          "valid": 38
+        }
+      }
+    },
+    "explicit_autodiff": {
+      "projection_queries": 16,
+      "exceptions": 0,
+      "optimizer_success": 16,
+      "reference_eligible": 16,
+      "reference_correct": 16,
+      "max_absolute_gap": 3.806051844115909e-11,
+      "median_ms": 68.97606304846704,
+      "median_map_calls": 97.0,
+      "median_jacobian_calls": 32.0,
+      "samples": 512,
+      "valid_samples": 512,
+      "max_sample_matrix_difference": 0.0,
+      "max_jacobian_error": 6.113376471716947e-11,
+      "connections": {
+        "coordinate": {
+          "total": 64,
+          "valid": 64
+        },
+        "pose_linear": {
+          "total": 64,
+          "valid": 38
+        }
+      }
+    }
+  },
+  "decision": "No new capability follows from shared operators; assess any numerical differences separately."
+}

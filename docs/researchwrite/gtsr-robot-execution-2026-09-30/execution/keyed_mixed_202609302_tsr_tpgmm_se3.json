@@ -1,0 +1,155 @@
+{
+  "arm": "keyed",
+  "context": "mixed",
+  "seed": 202609302,
+  "method": "tsr_tpgmm_se3",
+  "status": "failed",
+  "success": false,
+  "stop_reason": "force_abort",
+  "mplib_seeded": false,
+  "exception": "RuntimeError('force_abort')",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/rocos/sia/tsr/scripts/gtsr_robot_execution.py\", line 392, in worker\n    planner.follow_path(result, refine_steps=refine)\n  File \"/home/rocos/miniconda3/envs/maniskill_download/lib/python3.10/site-packages/mani_skill/examples/motionplanning/two_finger_gripper/motionplanner.py\", line 52, in follow_path\n    obs, reward, terminated, truncated, info = self.env.step(action)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_robot_execution.py\", line 293, in monitored_step\n    raise RuntimeError(\"force_abort\")\nRuntimeError: force_abort\n",
+  "env_success": false,
+  "steps": 309,
+  "final_position_error_mm": 59.65028330683708,
+  "final_axis_error_rad": 0.014794358052313328,
+  "max_net_contact_force_N": 104.52837554124498,
+  "reached_phases": [
+    -1,
+    0,
+    1,
+    2,
+    3
+  ],
+  "wall_seconds": 1.0890740460017696,
+  "planning_seconds": 0.06815650500357151,
+  "planning_calls": [
+    {
+      "phase": "reach",
+      "algorithm": "screw",
+      "seconds": 0.0016877040034160018,
+      "result": "screw plan failed",
+      "within_budget": true
+    },
+    {
+      "phase": "reach",
+      "algorithm": "rrt_connect",
+      "seconds": 0.02846952190157026,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "grasp",
+      "algorithm": "screw",
+      "seconds": 0.003482102998532355,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "lift",
+      "algorithm": "screw",
+      "seconds": 0.0036689010448753834,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "align_keyed",
+      "algorithm": "screw",
+      "seconds": 0.00396412203554064,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "align_keyed",
+      "algorithm": "screw",
+      "seconds": 0.00035261199809610844,
+      "result": "screw plan failed",
+      "within_budget": true
+    },
+    {
+      "phase": "align_keyed",
+      "algorithm": "rrt_connect",
+      "seconds": 0.02653154102154076,
+      "result": "Success",
+      "within_budget": true
+    }
+  ],
+  "targets": [
+    {
+      "waypoint": 0,
+      "phase": 0,
+      "rho": 1.0,
+      "candidate": 0,
+      "coordinate": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peg_target": [
+        [
+          0.9349238495917888,
+          -0.3385631412579332,
+          -0.1062656804713133,
+          -0.17060925479917183
+        ],
+        [
+          0.3239404848165262,
+          0.9365595258167146,
+          -0.13386118518377388,
+          -0.011051566075238786
+        ],
+        [
+          0.14484459866113206,
+          0.09072625851169788,
+          0.9852861453685239,
+          0.20922136599233293
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "waypoint": 1,
+      "phase": 0,
+      "rho": 1.0,
+      "candidate": 0,
+      "coordinate": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peg_target": [
+        [
+          0.9349238495917888,
+          -0.3385631412579332,
+          -0.1062656804713133,
+          -0.17060925479917183
+        ],
+        [
+          0.3239404848165262,
+          0.9365595258167146,
+          -0.13386118518377388,
+          -0.011051566075238786
+        ],
+        [
+          0.14484459866113206,
+          0.09072625851169788,
+          0.9852861453685239,
+          0.20922136599233293
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    }
+  ]
+}

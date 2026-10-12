@@ -1,0 +1,233 @@
+{
+  "angle": 0.8,
+  "mode": "straight",
+  "seed": 930100,
+  "scene_collision": false,
+  "success": false,
+  "status": "failed",
+  "stop_reason": "physical_progress_not_reached: 0.004598",
+  "exception": "RuntimeError('physical_progress_not_reached: 0.004598')",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 181, in run_pilot\n    peg_move(gate.start_depth - gate.travel * progress, gate.angle * progress if mode == \"follow\" else 0)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 122, in peg_move\n    raise RuntimeError(f\"physical_progress_not_reached: {error:.6f}\")\nRuntimeError: physical_progress_not_reached: 0.004598\n",
+  "steps": 638,
+  "max_force_N": 23.606177600685655,
+  "final_error_mm": 41.882093995809555,
+  "final_clearance_mm": -37.80224919319153,
+  "plan_seconds": 0.1210696209454909,
+  "wall_seconds": 1.9528304190607741,
+  "plans": [
+    {
+      "phase": "reach",
+      "status": "Success",
+      "seconds": 0.03114932798780501
+    },
+    {
+      "phase": "grasp",
+      "status": "Success",
+      "seconds": 0.003688093042001128
+    },
+    {
+      "phase": "lift",
+      "status": "Success",
+      "seconds": 0.003790523041971028
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.004828043980523944
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0035428799455985427
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034832580713555217
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003461589920334518
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034473619889467955
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0035085529088974
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034546960378065705
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034005630295723677
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0033421689877286553
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003194474964402616
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0032537649385631084
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003237699973396957
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034910980612039566
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0033098619896918535
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0033601459581404924
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0033416440710425377
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0033983850153163075
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003432976081967354
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0035186129389330745
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003501625033095479
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0033200070029124618
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0031776659889146686
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0031801400473341346
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0032544599380344152
+    }
+  ],
+  "targets": [
+    {
+      "depth": 0.132,
+      "yaw": 0
+    },
+    {
+      "depth": 0.132,
+      "yaw": 0
+    },
+    {
+      "depth": 0.131,
+      "yaw": 0
+    },
+    {
+      "depth": 0.13,
+      "yaw": 0
+    },
+    {
+      "depth": 0.129,
+      "yaw": 0
+    },
+    {
+      "depth": 0.128,
+      "yaw": 0
+    },
+    {
+      "depth": 0.127,
+      "yaw": 0
+    },
+    {
+      "depth": 0.126,
+      "yaw": 0
+    },
+    {
+      "depth": 0.125,
+      "yaw": 0
+    },
+    {
+      "depth": 0.124,
+      "yaw": 0
+    },
+    {
+      "depth": 0.123,
+      "yaw": 0
+    },
+    {
+      "depth": 0.122,
+      "yaw": 0
+    },
+    {
+      "depth": 0.121,
+      "yaw": 0
+    },
+    {
+      "depth": 0.12,
+      "yaw": 0
+    },
+    {
+      "depth": 0.119,
+      "yaw": 0
+    },
+    {
+      "depth": 0.118,
+      "yaw": 0
+    },
+    {
+      "depth": 0.11699999999999999,
+      "yaw": 0
+    },
+    {
+      "depth": 0.11599999999999999,
+      "yaw": 0
+    },
+    {
+      "depth": 0.11499999999999999,
+      "yaw": 0
+    }
+  ],
+  "scene_collision_objects": 0
+}

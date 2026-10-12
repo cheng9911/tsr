@@ -1,0 +1,1379 @@
+{
+  "schema_version": 1,
+  "mode": "read_only_inventory_no_fit_no_rollout",
+  "root": "/home/rocos/sia/maniskill_spectrum",
+  "pairs": [
+    {
+      "pair_key": "drawer_to_plate_push",
+      "source_task": "drawer_middle_open",
+      "target_task": "plate_front_push",
+      "family": "one_axis_sliding",
+      "claim": "rail/sliding du relevance transfers across articulated drawer and free plate push"
+    },
+    {
+      "pair_key": "knob_to_microwave_door",
+      "source_task": "stove_knob_turn",
+      "target_task": "microwave_door_revolute",
+      "family": "revolute_yaw",
+      "claim": "yaw-only relevance transfers across knob and hinged door"
+    },
+    {
+      "pair_key": "bowl_stove_to_bowl_plate",
+      "source_task": "bowl_on_stove",
+      "target_task": "bowl_on_plate",
+      "family": "support_to_stacking",
+      "claim": "upright xyz placement transfers across support surfaces"
+    },
+    {
+      "pair_key": "bowl_stove_to_cream_cheese_bowl",
+      "source_task": "bowl_on_stove",
+      "target_task": "cream_cheese_in_bowl",
+      "family": "support_to_container",
+      "claim": "upright xyz placement transfers across object and container geometry"
+    },
+    {
+      "pair_key": "bowl_stove_to_wine_cabinet",
+      "source_task": "bowl_on_stove",
+      "target_task": "wine_bottle_on_cabinet",
+      "family": "cross_object_support",
+      "claim": "upright xyz placement transfers across object identity and scene support"
+    }
+  ],
+  "task_specs": [
+    {
+      "task_key": "drawer_middle_open",
+      "suite_name": "libero_goal",
+      "task_id": 0,
+      "language": "open the middle drawer of the cabinet",
+      "family": "prismatic_sliding",
+      "oracle_selector": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "body_name": "wooden_cabinet_1_cabinet_middle",
+      "joint_name": "wooden_cabinet_1_middle_level",
+      "free_joint_name": null,
+      "control": "prismatic",
+      "notes": "drawer rail translation only"
+    },
+    {
+      "task_key": "stove_knob_turn",
+      "suite_name": "libero_goal",
+      "task_id": 7,
+      "language": "turn on the stove",
+      "family": "revolute_knob",
+      "oracle_selector": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "nominal_pose6": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "body_name": "flat_stove_1_button",
+      "joint_name": "flat_stove_1_button",
+      "free_joint_name": null,
+      "control": "revolute_yaw",
+      "notes": "button hinge rotation only"
+    },
+    {
+      "task_key": "microwave_door_revolute",
+      "suite_name": "libero_10",
+      "task_id": 9,
+      "language": "put the yellow and white mug in the microwave and close it",
+      "family": "revolute_door",
+      "oracle_selector": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "nominal_pose6": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      "body_name": "microwave_1_microdoorroot",
+      "joint_name": "microwave_1_microjoint",
+      "free_joint_name": null,
+      "control": "revolute_yaw",
+      "notes": "door hinge subtask scored as a revolute relation"
+    },
+    {
+      "task_key": "plate_front_push",
+      "suite_name": "libero_goal",
+      "task_id": 5,
+      "language": "push the plate to the front of the stove",
+      "family": "planar_one_axis_push",
+      "oracle_selector": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "body_name": "plate_1_main",
+      "joint_name": null,
+      "free_joint_name": "plate_1_joint0",
+      "control": "free_pose",
+      "notes": "front translation tracked; lateral/vertical/rotations suppressed"
+    },
+    {
+      "task_key": "bowl_on_stove",
+      "suite_name": "libero_goal",
+      "task_id": 1,
+      "language": "put the bowl on the stove",
+      "family": "support_placement",
+      "oracle_selector": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.08,
+        0.02,
+        0.06,
+        0,
+        0,
+        0
+      ],
+      "body_name": "akita_black_bowl_1_main",
+      "joint_name": null,
+      "free_joint_name": "akita_black_bowl_1_joint0",
+      "control": "free_pose",
+      "notes": "target translation tracked; object kept upright"
+    },
+    {
+      "task_key": "bowl_on_plate",
+      "suite_name": "libero_goal",
+      "task_id": 8,
+      "language": "put the bowl on the plate",
+      "family": "stacking_support",
+      "oracle_selector": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.07,
+        -0.02,
+        0.055,
+        0,
+        0,
+        0
+      ],
+      "body_name": "akita_black_bowl_1_main",
+      "joint_name": null,
+      "free_joint_name": "akita_black_bowl_1_joint0",
+      "control": "free_pose",
+      "notes": "stacking target translation tracked; yaw free"
+    },
+    {
+      "task_key": "cream_cheese_in_bowl",
+      "suite_name": "libero_goal",
+      "task_id": 6,
+      "language": "put the cream cheese in the bowl",
+      "family": "container_in",
+      "oracle_selector": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.07,
+        0.02,
+        0.045,
+        0,
+        0,
+        0
+      ],
+      "body_name": "cream_cheese_1_main",
+      "joint_name": null,
+      "free_joint_name": "cream_cheese_1_joint0",
+      "control": "free_pose",
+      "notes": "container-relative translation tracked; rotations suppressed"
+    },
+    {
+      "task_key": "wine_bottle_on_cabinet",
+      "suite_name": "libero_goal",
+      "task_id": 2,
+      "language": "put the wine bottle on top of the cabinet",
+      "family": "upright_support_placement",
+      "oracle_selector": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "nominal_pose6": [
+        0.08,
+        0,
+        0.1,
+        0,
+        0,
+        0
+      ],
+      "body_name": "wine_bottle_1_main",
+      "joint_name": null,
+      "free_joint_name": "wine_bottle_1_joint0",
+      "control": "free_pose",
+      "notes": "upright placement translation tracked; yaw ignored"
+    }
+  ],
+  "reports": {
+    "geometry_transfer": {
+      "rows": 180,
+      "failures": 0,
+      "repeats": 1,
+      "sample_sizes": [
+        3,
+        5,
+        8
+      ],
+      "split_seed": 20260831,
+      "summary": [
+        {
+          "method": "Ours transfer: source Pdiag N=30 + target nominal N=1",
+          "sample_size": "3",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.00021250544405351354",
+          "e_task_mean": "1.8247556345547286e-07",
+          "count": "15"
+        },
+        {
+          "method": "Frame-weighted target scratch",
+          "sample_size": "3",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.13757796434131817",
+          "e_task_mean": "8.097937399296389e-06",
+          "count": "15"
+        },
+        {
+          "method": "Phase scalar GP target scratch",
+          "sample_size": "3",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.13757956775232397",
+          "e_task_mean": "8.098074946260712e-06",
+          "count": "15"
+        },
+        {
+          "method": "Pdiag finite target scratch",
+          "sample_size": "3",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.0037624699708364733",
+          "e_task_mean": "3.4829540143787856e-07",
+          "count": "15"
+        },
+        {
+          "method": "Ours transfer: source Pdiag N=30 + target nominal N=1",
+          "sample_size": "5",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.00021250544405351354",
+          "e_task_mean": "1.878916112704118e-07",
+          "count": "15"
+        },
+        {
+          "method": "Frame-weighted target scratch",
+          "sample_size": "5",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.13047138126698254",
+          "e_task_mean": "6.6440106963117785e-06",
+          "count": "15"
+        },
+        {
+          "method": "Phase scalar GP target scratch",
+          "sample_size": "5",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.13047294359845168",
+          "e_task_mean": "6.644144006141173e-06",
+          "count": "15"
+        },
+        {
+          "method": "Pdiag finite target scratch",
+          "sample_size": "5",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.0009187726372913801",
+          "e_task_mean": "2.2931282106905428e-07",
+          "count": "15"
+        },
+        {
+          "method": "Ours transfer: source Pdiag N=30 + target nominal N=1",
+          "sample_size": "8",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.00021250544405351354",
+          "e_task_mean": "1.8844053700248234e-07",
+          "count": "15"
+        },
+        {
+          "method": "Frame-weighted target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.12721618676886162",
+          "e_task_mean": "6.0117919218927876e-06",
+          "count": "15"
+        },
+        {
+          "method": "Phase scalar GP target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.12721786453758843",
+          "e_task_mean": "6.011911561935106e-06",
+          "count": "15"
+        },
+        {
+          "method": "Pdiag finite target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.0005865447251427326",
+          "e_task_mean": "2.1454277264945628e-07",
+          "count": "15"
+        }
+      ],
+      "paired_pdiag_differences": [
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20260818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -9.109304012423491e-8
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20260818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.124995324095386e-9
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": 3.8780165251091373e-10
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20270818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.3870072049145647e-9
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20270818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.368886584200583e-10
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -6.982842031303015e-10
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20280818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -6.168315530372224e-7
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20280818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": 3.5390511847174933e-10
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.3458681152839743e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20260818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.2363450589923303e-10
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20260818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -6.378272193336064e-11
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.8628577058016792e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20270818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.235706955889844e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20270818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": 6.498805047306252e-11
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -6.199496144774379e-10
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20280818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.805781133066707e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20280818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -8.104270099148308e-11
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.61927324098954e-9
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20260818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.744979440808463e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20260818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.6708374908021728e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.16660239040652e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20270818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.5676171519278487e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20270818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.6536667521958912e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.6423617674539439e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20280818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.4697659962675987e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20280818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.8465435974997825e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.716636282704377e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20260818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.6534502308351123e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20260818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.344796580991066e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.9248083511430657e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20270818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.495715407879982e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20270818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.447953048907795e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": 3.2577601073882314e-10
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20280818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.3285729786081663e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20280818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.1529969251744017e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.4495257008238866e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20260818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.0035007207890352e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20260818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.4227723149645547e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.107883985811252e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20270818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -8.86516124135351e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20270818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.1566454369015474e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.9645874394109404e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20280818",
+            "3",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.568090416497028e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20280818",
+            "5",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -9.154897765626402e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.3564261239781157e-8
+        }
+      ]
+    },
+    "geometry_transfer_tpgmm_n8": {
+      "rows": 75,
+      "failures": 0,
+      "repeats": 1,
+      "sample_sizes": [
+        8
+      ],
+      "split_seed": 20260831,
+      "summary": [
+        {
+          "method": "Ours transfer: source Pdiag N=30 + target nominal N=1",
+          "sample_size": "8",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.00021250544405351354",
+          "e_task_mean": "1.8643018237554046e-07",
+          "count": "15"
+        },
+        {
+          "method": "Frame-weighted target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.12804854798143145",
+          "e_task_mean": "6.2609579394086644e-06",
+          "count": "15"
+        },
+        {
+          "method": "Phase scalar GP target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "0.0",
+          "e_alpha_mean": "0.12805026489318946",
+          "e_task_mean": "6.261077482442857e-06",
+          "count": "15"
+        },
+        {
+          "method": "Pdiag finite target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.0007421017316248097",
+          "e_task_mean": "2.1573760984680677e-07",
+          "count": "15"
+        },
+        {
+          "method": "TP-GMM SE(3) target scratch",
+          "sample_size": "8",
+          "m_transfer_accuracy": "1.0",
+          "e_alpha_mean": "0.0262428629362379",
+          "e_task_mean": "3.437340798069499e-05",
+          "count": "15"
+        }
+      ],
+      "paired_pdiag_differences": [
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.0684856935307042e-9
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -8.126444843895457e-9
+        },
+        {
+          "cell": [
+            "drawer_to_plate_push",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -7.299087602183121e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.591794645657917e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.3195794334722392e-9
+        },
+        {
+          "cell": [
+            "knob_to_microwave_door",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -4.177236643354631e-10
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -9.317371576153901e-9
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.1300451358933448e-9
+        },
+        {
+          "cell": [
+            "bowl_stove_to_bowl_plate",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.171742802074782e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -2.2664341389179648e-7
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -1.3837879264696213e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_cream_cheese_bowl",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -6.445486744179264e-9
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20260818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.261858589377253e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20270818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -3.8760388949940345e-8
+        },
+        {
+          "cell": [
+            "bowl_stove_to_wine_cabinet",
+            "20280818",
+            "8",
+            "0"
+          ],
+          "difference_transfer_minus_scratch": -5.531769670874005e-8
+        }
+      ]
+    }
+  },
+  "source_profiles": {
+    "bowl_on_stove": {
+      "profile_count": 18,
+      "seed_ids": [
+        20260818,
+        20270818,
+        20280818
+      ],
+      "subset_ids": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    "drawer_middle_open": {
+      "profile_count": 18,
+      "seed_ids": [
+        20260818,
+        20270818,
+        20280818
+      ],
+      "subset_ids": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    "stove_knob_turn": {
+      "profile_count": 18,
+      "seed_ids": [
+        20260818,
+        20270818,
+        20280818
+      ],
+      "subset_ids": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    }
+  },
+  "profile_grid": {
+    "shape": [
+      540,
+      100,
+      6
+    ],
+    "fields": [
+      "profile",
+      "task_key",
+      "family",
+      "seed",
+      "subset_id",
+      "sample_size",
+      "progress",
+      "phase_codes"
+    ],
+    "phase_codes": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "bins_per_phase": 25
+  },
+  "raw_data": {
+    "bowl_on_plate": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "0af95d08c48e09457e4db6184e3eb5c74ec1517d0419e95a571cb7176d359d50"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "0af95d08c48e09457e4db6184e3eb5c74ec1517d0419e95a571cb7176d359d50"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "0af95d08c48e09457e4db6184e3eb5c74ec1517d0419e95a571cb7176d359d50"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "bowl_on_stove": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "5218dfa371b2bb68a0335fb25beae28619a7713ae76d96f308fe69017c11f9cd"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "5218dfa371b2bb68a0335fb25beae28619a7713ae76d96f308fe69017c11f9cd"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "5218dfa371b2bb68a0335fb25beae28619a7713ae76d96f308fe69017c11f9cd"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "cream_cheese_in_bowl": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "62525248c8a135bb66750073ff1d39e95682e9ab6b31af4accb1f89398c4e31a"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "62525248c8a135bb66750073ff1d39e95682e9ab6b31af4accb1f89398c4e31a"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "62525248c8a135bb66750073ff1d39e95682e9ab6b31af4accb1f89398c4e31a"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "drawer_middle_open": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "microwave_door_revolute": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "6904c9cd1b0d5f829c2caab1255ea44bf2986dbe0ed077892e427a97ce325bc7"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "6904c9cd1b0d5f829c2caab1255ea44bf2986dbe0ed077892e427a97ce325bc7"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "6904c9cd1b0d5f829c2caab1255ea44bf2986dbe0ed077892e427a97ce325bc7"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "plate_front_push": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "3169024a3d1738689bd93063058ec20ceae145741ce2662b531ab5a5d4c8cf8a"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "stove_knob_turn": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "522dde0e50501182765c06efaa5985406f82d5f35b2f0b024dbc76439d5f18ef"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "522dde0e50501182765c06efaa5985406f82d5f35b2f0b024dbc76439d5f18ef"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "522dde0e50501182765c06efaa5985406f82d5f35b2f0b024dbc76439d5f18ef"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    },
+    "wine_bottle_on_cabinet": {
+      "files": [
+        {
+          "seed": 20260818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "ca5b471b51dba4d56a05cccf87e6c084a65d7c5ff0a8c14ea1c519a47baa5d8d"
+        },
+        {
+          "seed": 20270818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "ca5b471b51dba4d56a05cccf87e6c084a65d7c5ff0a8c14ea1c519a47baa5d8d"
+        },
+        {
+          "seed": 20280818,
+          "episodes": 75,
+          "usable_flag_count": 75,
+          "object_pose_sha256": "ca5b471b51dba4d56a05cccf87e6c084a65d7c5ff0a8c14ea1c519a47baa5d8d"
+        }
+      ],
+      "unique_scored_trajectory_hashes": 1
+    }
+  },
+  "proposed_source_range": {
+    "coordinate_convention": "Log(Trans(xyz) Rx(roll) Ry(pitch) Rz(yaw))",
+    "source_condition_ids": [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74
+    ],
+    "lower": [
+      -0.011220990865312277,
+      -0.011314258570160355,
+      -0.011504182686769485,
+      -0.29541963655485454,
+      -0.258658380189524,
+      -0.5201068478482638
+    ],
+    "upper": [
+      0.011524785575398776,
+      0.012348009781344484,
+      0.011932226251258,
+      0.2532305411962473,
+      0.2929865026553072,
+      0.4966800993344109
+    ],
+    "coordinate_scales": [
+      0.011524785575398776,
+      0.012348009781344484,
+      0.011932226251258,
+      0.29541963655485454,
+      0.2929865026553072,
+      0.5201068478482638
+    ],
+    "tolerance": 1e-12,
+    "out_of_support_condition_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      9,
+      11,
+      14
+    ]
+  },
+  "sha256": {
+    "phase_switch_symmetry_multiseed/libero_relation_suite/libero_relation_suite_experiment.json": "a67dd47303625446ac0ac76d0c0fc20ce38896cf5c7d7047f8f9b6ac3a45f635",
+    "phase_switch_symmetry_multiseed/libero_relation_suite/libero_relation_suite_profiles.npz": "1be02ba3f905c756b40b1aa8fd70a7582904c032cd1f6f2d147712a8aeef1aa5",
+    "phase_switch_symmetry_multiseed/libero_relation_suite/libero_relation_suite_fixed_contexts.json": "f6dc359a1a250a5a2c93dc75c7805c51199080b77e608fcf3b76a55b22c7eeb9",
+    "phase_switch_symmetry_multiseed/libero_relation_suite/libero_relation_suite_subsets.json": "46ae1ebe404e1094c6d07a237af393540728afdd305b4744c22260fe1e49258e",
+    "phase_switch_symmetry/benchmark_geometry_transfer.py": "12b78beea2b413a91f2c4bd9a8304a3defd17f95badca38544cdb72aa8b5b854",
+    "phase_switch_symmetry/collect_libero_relation_suite.py": "02c02acba16cfd93295d21ceebe1bc636a37458dc87dffe1dba2a17761e1c150",
+    "phase_switch_symmetry/benchmark_libero_relation_suite.py": "ab6539cc5d8b863fdc0824e1714172efa955669233474a623f7d409224118088",
+    "phase_switch_symmetry/libero_relation_suite_specs.py": "8afddbb4449c7576d3726255343f4876efa43b4c25c61b522e7fd424460221bd",
+    "phase_switch_symmetry/benchmark_phase_switch_baselines.py": "b8a963b847a2918558d7d64dbc55d33ae2a9680bbc83b3e245a6e7363d751765",
+    "phase_switch_symmetry/phase_switch_se3_baselines.py": "d76bcf4041b32867a6f51da8600512888fffad92e031716ef26d5ae34612be43",
+    "phase_switch_symmetry_multiseed/geometry_transfer/geometry_transfer_fits.csv": "c3b7af5cf751d4da9485184fbc10ced28565a135e34d6a5611133e381a36f06a",
+    "phase_switch_symmetry_multiseed/geometry_transfer/geometry_transfer_summary.csv": "b6445149dea2772110b1b9ec2996e1d48abb3856a66852fb2ab8433c38264483",
+    "phase_switch_symmetry_multiseed/geometry_transfer/geometry_transfer_by_pair.csv": "bb8a307b11e7a4940d32a702e4e406e9c609a1deacaff0903af94a1008df48c4",
+    "phase_switch_symmetry_multiseed/geometry_transfer/geometry_transfer_validation.json": "3bb1436b79beac7497cd43cf71e8b701b85ec0980bf28e1b9c3ec490ae2eba59",
+    "phase_switch_symmetry_multiseed/geometry_transfer_tpgmm_n8/geometry_transfer_fits.csv": "ef57cd6d0d3cda300d776c6ca24548c3fc0658c2b7f2781a4bd58b3e8a26aa38",
+    "phase_switch_symmetry_multiseed/geometry_transfer_tpgmm_n8/geometry_transfer_summary.csv": "d1db0f7d02e2903f5946004ef3c61ee395d911f2047d0de64f460d3ec9df94b1",
+    "phase_switch_symmetry_multiseed/geometry_transfer_tpgmm_n8/geometry_transfer_by_pair.csv": "eb219507c5b6c94b3b7c3c3e05c3b80641e336019c261587f375bc77bf8639e0",
+    "phase_switch_symmetry_multiseed/geometry_transfer_tpgmm_n8/geometry_transfer_validation.json": "9b7d8238a8193ddc27c54b58532528c87cc3b8c00bf4a9e49e53414ad543e95c",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_plate/bowl_on_plate_seed_20260818.h5": "1a84459b550b077d7ee2b2f5fe170d3424044c0359347cf56e0bb86b18ee9604",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_plate/bowl_on_plate_seed_20270818.h5": "82489cc2f8fc297de74c6412652772c13a3a0ce20dfa470dbb84cbc17f928300",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_plate/bowl_on_plate_seed_20280818.h5": "1f6053a07da086b64f81058c6aebf2d93682da76f650591e774313e0cd5fd28e",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_stove/bowl_on_stove_seed_20260818.h5": "59207875bd8cc7f8395a291f664bb56c32989e1cee94dfc8569da0e851f172d3",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_stove/bowl_on_stove_seed_20270818.h5": "40730ae95dde0d9fe5b061177faad4230c15c06081a76393bd4a12c8855caf02",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/bowl_on_stove/bowl_on_stove_seed_20280818.h5": "d8c6b29aab08b8616ef26cdebb808796f7f2b42dbe9927ad382e541dc06ca0fb",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/cream_cheese_in_bowl/cream_cheese_in_bowl_seed_20260818.h5": "9bb2310a7590880bfa40c93547b714daffb66b8fd283e338c9409fcc51aa142c",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/cream_cheese_in_bowl/cream_cheese_in_bowl_seed_20270818.h5": "a9f145b6c0d96138b0bd433c6ce8dc6ff6e057f84813550d08fc6aac361455a6",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/cream_cheese_in_bowl/cream_cheese_in_bowl_seed_20280818.h5": "dc108911fddc8d8678072ae398deda37637910ef71e7e8003eb40c1fe2a0a9f5",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/drawer_middle_open/drawer_middle_open_seed_20260818.h5": "98b36aa4913a3291c360657bf7f6f05ae0ae0a0d2c0426e6224b8b075aee86c2",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/drawer_middle_open/drawer_middle_open_seed_20270818.h5": "50e69b11131f6f181911ef2280206c734ce08a54d03361bb592e7a9c81781739",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/drawer_middle_open/drawer_middle_open_seed_20280818.h5": "9ef58790e1475647fbf9ebab026d0362979099df929ed9872b1709fd793db1da",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/microwave_door_revolute/microwave_door_revolute_seed_20260818.h5": "e8921d2484bbf66cc50f559acac9b69e85518c556c08811a3396c7a30ed8b079",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/microwave_door_revolute/microwave_door_revolute_seed_20270818.h5": "6e38fc62fa9530f8d1881a8efbf13a75f9f578bc8609455a543cc4d5af24ae78",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/microwave_door_revolute/microwave_door_revolute_seed_20280818.h5": "d9bc0e6eacc7f2ec769c6b3a3d97e966377ad699a057ca5186e707cf5cc33784",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/plate_front_push/plate_front_push_seed_20260818.h5": "5e7612746ca3b37b4c0d1b2efe857a38ee27e60e615c44b5b6319ea2647f0a76",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/plate_front_push/plate_front_push_seed_20270818.h5": "7b8ee0c2908ba6d0a6e5720712a9d71d59e057d8d66973a4aed30e7f638ba3ad",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/plate_front_push/plate_front_push_seed_20280818.h5": "8ca0ff413a31d398c0a36ca0f102de8cf8d372866e7ecadfc3924d70226e427a",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/stove_knob_turn/stove_knob_turn_seed_20260818.h5": "37ffb15d3b9d61a8637d5360f402802d58c1220292c8bd1a346901325063f228",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/stove_knob_turn/stove_knob_turn_seed_20270818.h5": "15a0330bb01965f300c6c25b3c80408c09415ccd7528d3f4af78cb680a63bc2d",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/stove_knob_turn/stove_knob_turn_seed_20280818.h5": "7293195c302559bdb7db10a646b4467eea5ad5ea51ad43dab774a62877d51690",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/wine_bottle_on_cabinet/wine_bottle_on_cabinet_seed_20260818.h5": "33a0c55f4149a3eb4a830fbf01c0467e69bcf22be335785ddfc6e0e087a1aa07",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/wine_bottle_on_cabinet/wine_bottle_on_cabinet_seed_20270818.h5": "dbbcb288473d1b5b5107d8062c12a623e480e6e97ea9bccde174fc6242db91e7",
+    "phase_switch_symmetry_rollouts_libero_relation_suite/wine_bottle_on_cabinet/wine_bottle_on_cabinet_seed_20280818.h5": "33a4c659fecdf695a770303097efe22a7bc3957e0e02e11684aa956164f1da5b"
+  }
+}

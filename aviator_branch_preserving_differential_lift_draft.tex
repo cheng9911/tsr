@@ -1,0 +1,1285 @@
+%%
+%% Working manuscript generated from the Elsevier numbered-reference template.
+%% The original uploaded manuscript is preserved as elsarticle-template-num-original.tex.
+%%
+\documentclass[preprint,12pt]{elsarticle}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\emergencystretch=2em
+
+\DeclareMathOperator{\Log}{Log}
+\DeclareMathOperator{\Exp}{Exp}
+\DeclareMathOperator{\Ad}{Ad}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\nullsp}{null}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SE}{\mathrm{SE}(3)}
+\newcommand{\so}{\mathfrak{se}(3)}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\method}{BPDL}
+
+\newtheorem{assumption}{Assumption}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+
+\journal{Robotics and Computer-Integrated Manufacturing}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Locally Branch-Preserving Differential Lifting with Safety-Governed Online Continuation}
+
+\author[inst1]{Author Name}
+\affiliation[inst1]{organization={Department / Laboratory},
+             addressline={University / Institution},
+             city={City},
+             postcode={Postcode},
+             country={Country}}
+
+\begin{abstract}
+Aircraft cockpit assembly and functional inspection require two manipulators to carry a rigid module through a constrained workspace while preserving a calibrated grasp. We study this bimanual task as online motion generation on an augmented task--robot constraint manifold. The proposed local differential lift decomposes joint velocity into a task-induced horizontal component and one self-motion rate per arm. Exact pose-error Jacobians, a three-variable safety QP over $[r_L,r_R,\beta]$, midpoint integration, and an endpoint-aware governor provide a finite-step continuation procedure. The QP generates a candidate action; an independent nonlinear endpoint and swept-clearance checker decides whether that action is accepted. If the candidate cannot be accepted at the requested task rate, the governor backtracks or reduces the task-rate scale and stops when the frozen threshold is reached. The evaluation combines a 32-state numerical gate, N1--N4 diagnostic experiments, a 90-state LUT comparison, and 2160 rows from replayed and held-out manifests at three step sizes. The endpoint-aware governor completed 90/90 trials at $\Delta t=0.0025$ and $0.005$ s and 89/90 at $0.010$ s in the held-out matrix, with no accepted endpoint or swept-clearance violation; the result carries a latency and progress trade-off. The strict branch-search experiment found no valid Pointwise/DLS branch-jump contrast, so the evidence does not support a global or comparative IK-branch-preservation claim. The supported conclusion is a safety-governed local online continuation framework in a tested regular local region; physical deployment and global topological guarantees remain future work.
+\end{abstract}
+
+%% Graphical abstract and highlights are retained here as comments until figures
+%% and final quantitative claims are available.
+% \begin{graphicalabstract}
+% \includegraphics[width=\textwidth]{figures/graphical_abstract.pdf}
+% \end{graphicalabstract}
+%
+% \begin{highlights}
+% \item An online differential lift provides a local continuation interface with a two-dimensional phase command and a safety-governed task-rate scale.
+% \item Horizontal task motion and vertical self-motion are separated on the augmented task--robot constraint manifold.
+% \item Joint and collision constraints are mapped into a convex feasible set in intrinsic phase-velocity space.
+% \item The evaluation isolates local continuity, constraint drift, safety, task progress, and held-out finite-step robustness.
+% \end{highlights}
+
+\begin{keyword}
+bimanual manipulation \sep redundancy resolution \sep constrained motion generation \sep differential inverse kinematics \sep constraint manifold \sep safe action space
+\end{keyword}
+
+\end{frontmatter}
+
+%% =====================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+Many industrial and teleoperated tasks prescribe a low-dimensional rigid-body motion while leaving each manipulator kinematically redundant. In a representative bimanual task, two seven-degree-of-freedom arms maintain fixed six-degree-of-freedom grasps on a shared mechanism whose task state is described by a steering angle and an axial displacement. At a regular configuration, each arm therefore retains one instantaneous self-motion degree of freedom. The task motion is low-dimensional, but a valid execution must also maintain end-effector constraints, preserve a continuous inverse-kinematics (IK) branch, avoid joint limits and self-collision, and retain sufficient clearance from the environment.
+
+In the intended manufacturing use case, the shared mechanism is a cockpit control-column or centre-console module. One arm supports the module while the second arm guides a calibrated insertion or functional sweep through the aircraft cockpit frame. The two arms must pass through a narrow instrument-panel opening, maintain the relative pose of the module, and stop or slow down when a panel, frame, or cable bundle approaches the protected clearance. This makes the redundancy coordinate a process variable: it changes elbow and shoulder posture to preserve access and load sharing while the module follows the prescribed roll--translation operation. The task is therefore representative of aircraft final assembly and inspection, where geometry changes between airframe variants and fixture re-calibration are common.
+
+A practical solution is to precompute a phase-consistent redundancy table. For each task state, one traces the one-dimensional self-motion set of each arm, assigns a phase coordinate, evaluates clearance, and stores the resulting joint configurations and derivatives. Online execution then integrates two phase velocities, interpolates the table, and applies a final numerical correction. This architecture is attractive because it moves most nonlinear computation offline and exposes only two redundancy actions to a planner or learned policy.
+
+The same architecture also creates four limitations. First, dense construction requires many IK calls and collision evaluations. Second, the table is specific to the task geometry, grasp calibration, robot model, and fixed obstacles used during construction. Third, multilinear interpolation between stored samples does not itself preserve the nonlinear task constraint, so an additional correction or rejection layer remains necessary. Fourth, a global phase table can obscure the distinction between a continuous local IK branch and a disconnected branch that happens to share the same task state.
+
+This paper revisits the task at the velocity level. Rather than first constructing a global map from task state and phase to joint configuration, we operate directly on the augmented constraint manifold
+\begin{equation}
+\mathcal M
+=
+\left\{(q,x)\in\mathcal Q\times\mathcal X
+\;\middle|\;
+ e(q,x)=0
+\right\},
+\label{eq:intro_manifold}
+\end{equation}
+where $q\in\R^{14}$ is the bimanual joint vector, $x\in\R^2$ is the task state, and $e\in\R^{12}$ stacks the two rigid-grasp pose errors. At a regular point, $\mathcal M$ is locally four-dimensional: two dimensions are imposed by task motion and two correspond to the arms' self-motion directions.
+
+We propose a \emph{branch-preserving differential lift} (\method). Given the current feasible state, task velocity, and a nominal pair of self-motion phase velocities, the method computes a continuous joint velocity
+\begin{equation}
+\dot q = h_e(q,x,e)+\beta h_x(q,x,\dot x_{\mathrm{nom}})+N(q,x)r,
+\qquad
+\dot x=\beta\dot x_{\mathrm{nom}},
+\qquad
+r=\begin{bmatrix}\dot\phi_L & \dot\phi_R\end{bmatrix}\T,
+\label{eq:intro_decomposition}
+\end{equation}
+where $h_e$ and $h_x$ are the feedback and nominal-task horizontal terms and the columns of $N$ span the instantaneous bimanual null space. Instead of constructing safety limits as a precomputed interval in $\phi$, we map joint-velocity, joint-limit, collision-clearance, and task-rate constraints through Eq.~\eqref{eq:intro_decomposition}. The resulting feasible set is a convex polytope in $y=[r\T,\beta]\T$, and the nominal phase action with preferred $\beta=1$ is projected onto that set before a midpoint integration step.
+
+The method is deliberately narrower than a general singularity-crossing or global manifold-planning algorithm. It assumes operation inside a regular local chart, detects loss of rank or an empty safe-action set, and reports failure or invokes a separate recovery routine. We therefore use the term \emph{without repeated nonlinear IK projection} rather than claiming absolute projection-free motion generation.
+
+The paper therefore treats branch preservation as a local continuation property, not as a global topological guarantee. Branch-label jumps are reported only when an independent finite atlas, descriptor margin, and closure-residual test agree; if a baseline does not exhibit a valid jump under the frozen protocol, that negative result is retained rather than replaced by an artificially stressed numerical failure.
+
+The safety logic has an explicit recovery path. If the $\beta=1$ slice is empty for the requested task rate, the same reduced optimization searches for the largest $\beta\in[0,1]$ such that the scaled rate $\dot x\leftarrow\beta\dot x_{\mathrm{nom}}$ admits a feasible phase action. The midpoint filter is rebuilt with the same scaled rate; a candidate is accepted only after nonlinear validation. If no $\beta$ above a configured stop threshold is feasible, the controller pauses the process and commands a retract or handover state. Thus an obstacle bottleneck produces a bounded slowdown or a declared stop, rather than an unhandled `infeasible` return.
+
+The contributions of this paper are:
+\begin{enumerate}
+    \item a task-conditioned manifold formulation of bimanual rigid-grasp redundancy that separates task motion from one self-motion coordinate per arm;
+    \item a local branch-preserving online differential lift with exact pose-error Jacobians, null-space gauge continuation, error feedback, midpoint integration, and adaptive step rejection, together with a finite-atlas test for the regular component on which the lift operates;
+    \item an intrinsic phase-space safety filter that converts high-dimensional velocity, joint-limit, and collision constraints into a three-dimensional convex feasible set over two phase rates and the task-rate scale $\beta$; and
+    \item a controlled simulation comparison against the phase-consistent lookup-table pipeline and online baselines, including a strict negative branch-jump control, endpoint-aware governor tests, and held-out finite-step evaluation; and
+    \item an execution interface that maps the commanded $\dot q$ to Cartesian impedance/admittance control and specifies measurements for a future physical validation.
+\end{enumerate}
+
+%% =====================================================================
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Task regions and constrained motion planning}
+
+Task Space Regions represent admissible end-effector poses as bounded subsets of $\SE$ and provide sampling and distance operations for pose-constrained manipulation planning \cite{berenson2011}. Constraint-manifold planners instead work with implicit equations in configuration space. AtlasRRT constructs local tangent-space charts to explore a constraint manifold \cite{jaillet2013}, while the IMACS framework separates constrained state-space representations from sampling-based planners and includes projection, atlas, and tangent-bundle variants \cite{kingston2019}. Learned or approximate manifold metrics have also been used to accelerate dual-arm constrained planning \cite{wang2018metric}, and recent neural kinodynamic planners combine constraint-manifold representations with rapid replanning and real-robot validation \cite{kicki2023cnpb}. These methods address global or learned planning. Our focus is the repeated local connection problem induced by a known task-state trajectory and a known current IK branch. The proposed lift can serve as a local connector inside a larger planner, but the present paper does not claim a new globally complete sampling strategy.
+
+\subsection{Differential inverse kinematics and redundancy resolution}
+
+Resolved-motion-rate control maps desired end-effector velocity to joint velocity through a Jacobian inverse or pseudoinverse \cite{whitney1969}. Manipulability and redundancy metrics \cite{yoshikawa1985,nakamura1987}, task-priority control \cite{siciliano1991,chiaverini1997}, and null-space obstacle avoidance \cite{khatib1986,liegeois1977,maciejewski1985} provide the algebraic foundation of Eq.~\eqref{eq:intro_decomposition}. These classical results do not by themselves solve the branch-gauge, midpoint-feasibility, and task-rate recovery issues considered here. The difficulty addressed here is their use as a reproducible local chart: the null basis must retain orientation, the primary task error must remain bounded under finite-step integration, and high-dimensional safety constraints must be exposed to a two-dimensional phase controller without merging disconnected IK branches.
+
+\subsection{Numerical constraint stabilization}
+
+Velocity-level satisfaction of a tangent equation does not guarantee zero position-level drift after numerical integration. Feedback stabilization of algebraic constraints is a standard remedy in numerical mechanics \cite{baumgarte1972}. We use the same principle at the kinematic level by adding a pose-error feedback term to the differential lift. The proposed method still validates each finite step independently and reduces the step size when the nonlinear residual exceeds tolerance. It therefore does not rely on the continuous-time error model as a substitute for discrete verification.
+
+\subsection{Offline redundancy maps and low-dimensional actions}
+
+For a fixed robot, task, and environment, a dense redundancy map can be an effective engineering solution: offline continuation resolves branch consistency, and online interpolation yields deterministic low-latency references. The AVIATOR system used in this paper follows this design and exposes only one self-motion phase velocity per arm to its dynamic-programming or reinforcement-learning policy. Our method preserves this low-dimensional action contract while replacing the stored global map by an online local differential chart. The central comparison is consequently not ``manifold versus non-manifold,'' but global offline parameterization versus local online lifting under identical task information.
+
+\subsection{Industrial dual-arm assembly and contact-aware control}
+
+Dual-arm assembly studies emphasise that geometric feasibility alone is insufficient when a carried part contacts a fixture or when the two end-effectors create internal forces. Peg-in-hole and constrained insertion work therefore combines geometric search with force/torque sensing, compliance, or hybrid position--force control \cite{huang2022peghole,alles2022centralize,liu2022assemblyreview}. In aircraft final assembly, the same issue appears when a control-column or panel module is guided through a narrow frame: a small calibration error can convert a harmless pose deviation into a large contact wrench. The present paper treats the differential lift as a reference generator, not as a force controller. Its physical interface is an impedance/admittance loop with an internal-force monitor, so that the kinematic method can be evaluated under the process constraints expected in computer-integrated manufacturing.
+
+\subsection{Velocity-level safety filters and tangent action spaces}
+
+Control-barrier-function (CBF) quadratic programs provide a formal language for enforcing differentiable safety inequalities while optimizing a nominal command \cite{ames2019cbf,ames2017cbf}. Tangent-space action-space methods such as ATACOM construct low-dimensional actions that respect analytic constraints before a policy is executed \cite{liu2022atacom}. Our polygon projection is a task-specific velocity-level realization of the same idea: the action is expressed in the two self-motion rates, while the task-rate governor handles the case in which no redundancy action can satisfy the requested cockpit motion. Because distance fields from meshes are only piecewise differentiable, the implementation uses a smoothed signed-distance field and retains finite-step validation; the paper therefore makes no continuous-time invariance claim for unsmoothed contact transitions.
+
+%% =====================================================================
+\section{AVIATOR Task and Existing LUT Pipeline}
+\label{sec:aviator}
+
+\subsection{Task state and rigid-grasp constraints}
+
+The AVIATOR benchmark uses two seven-degree-of-freedom manipulators. The task state is
+\begin{equation}
+ x = \begin{bmatrix}\theta & s\end{bmatrix}\T \in \mathcal X,
+\label{eq:task_state}
+\end{equation}
+where $\theta$ is the mechanism roll angle about the world $z$ axis and $s$ is an axial push--pull displacement. The nominal benchmark ranges are $\theta\in[-50^{\circ},50^{\circ}]$ and $s\in[-0.16,0]\,\mathrm{m}$; these values are treated as experiment settings rather than properties of the method.
+
+\subsection{Cockpit manufacturing interpretation}
+
+The shared mechanism represents a rigid cockpit module such as a control-column yoke, centre-console subassembly, or instrument-panel carrier. The two tools are calibrated to fixture points on the module and maintain a rigid relative grasp while the module is rotated and translated through the cockpit frame. The surrounding geometry contains the instrument-panel shell, side consoles, structural frames, and protected cable corridors. The process objective is to complete the prescribed insertion or functional sweep while keeping the tool--module pose error within tolerance, preserving a continuous IK branch, and maintaining a configurable clearance envelope. This interpretation turns $\theta$ and $s$ into measurable process variables and gives the phase rates a manufacturing meaning: they select shoulder/elbow posture and load-sharing motion while the module executes the required operation.
+
+The final physical study uses the same calibrated task map on a dual-arm workcell, following the calibration and collaborative-operation principles in \cite{calibration2022,iso10218,iso15066}. Each arm receives the commanded $\dot q_i$ as a reference to a Cartesian impedance/admittance controller. The module is instrumented with a six-axis wrench sensor when available; otherwise, joint-current residuals and the difference between the two arm wrench estimates are used as internal-force proxies. The controller logs these signals together with clearance and task error, so a geometrically valid trajectory is not counted as a successful industrial trial when it produces excessive contact force or motor current.
+
+For arm $i\in\{L,R\}$, the desired tool-center-point pose is
+\begin{equation}
+T_i^d(x)
+=
+T_{\mathrm{origin}}
+T_{\mathrm{roll}}(\theta)
+T_{\mathrm{pitch}}(s)
+T_{\mathrm{grasp},i}^{\mathrm{rigid}}
+T_{\mathrm{tool},i}^{-1},
+\label{eq:target_pose}
+\end{equation}
+with
+\begin{equation}
+T_{\mathrm{roll}}(\theta)
+=
+\begin{bmatrix}R_z(\theta)&0\\0\T&1\end{bmatrix},
+\qquad
+T_{\mathrm{pitch}}(s)
+=
+\begin{bmatrix}I&[0,0,s]\T\\0\T&1\end{bmatrix}.
+\end{equation}
+The rigid grasp fixes all six tool-pose coordinates. Away from singular configurations, the $6\times7$ geometric Jacobian of each arm has a one-dimensional null space. More generally, the desired pose may be supplied by any differentiable explicit task chart, including a G-TSR map of the form $T_i^d(u)=T_{0,i}\Phi_i(u)T_{e,i}$. The proposed solver uses the pose map and its differential; it does not rely on a representation-only advantage over an equivalent direct parameterization.
+
+\subsection{Offline self-motion tracing}
+
+The original pipeline defines a local self-motion direction $n_i(q_i)$ from the right singular vector associated with the smallest singular value of the arm Jacobian. Its sign is aligned with the preceding sample and it is normalized so that one phase increment has a consistent joint-space scale. Starting from an anchor configuration, the self-motion curve is traced in both directions by alternating a null-space predictor and a nonlinear IK corrector,
+\begin{equation}
+q_{i,k+1}
+=
+\operatorname{IK}\!\left(q_{i,k}\pm \Delta_\phi n_i(q_{i,k});\,T_i^d(x)\right).
+\label{eq:lut_arc_trace}
+\end{equation}
+The nominal implementation uses $\Delta_\phi=0.005$. Tracing stops at joint limits, IK failure, or a detected return to the anchor. The resulting component is marked as a closed self-motion loop or an open arc.
+
+For each sampled configuration, the pipeline evaluates the minimum clearance to two wall obstacles. Samples above the nominal clearance threshold $d_{\mathrm{safe}}=5\,\mathrm{mm}$ determine an outer phase interval. Each arm's traced curve is then resampled on a shared phase grid so that multilinear interpolation can be used online.
+
+\subsection{Wavefront continuation over task state}
+
+A local phase has meaning only relative to a consistently chosen branch. The table therefore propagates anchor configurations across the $(\theta,s)$ grid using warm-started IK. A deterministic wavefront begins at $(0,0)$, advances along the $s=0$ row in both $\theta$ directions, and then advances along each $s$ column. Neighboring anchor configurations seed the next solve, reducing but not eliminating the possibility of branch inconsistency.
+
+The nominal table dimensions are
+\begin{equation}
+ n_\theta\times n_s\times n_\phi = 101\times65\times128.
+\end{equation}
+For each arm, the stored fields include joint configuration, clearance, branch label, task-state derivatives, and phase derivative. We denote the per-arm map by
+\begin{equation}
+Q_i:(x,\phi_i)\mapsto q_i,
+\end{equation}
+and the combined map by
+\begin{equation}
+Q(x,\phi_L,\phi_R)
+=
+\begin{bmatrix}Q_L(x,\phi_L)\\Q_R(x,\phi_R)\end{bmatrix}.
+\label{eq:combined_lut}
+\end{equation}
+
+\subsection{Online LUT execution and phase safety filter}
+
+At runtime, the high-level controller outputs a normalized two-dimensional phase action, which is scaled to a nominal phase velocity; the safety layer additionally solves for the task-rate scale $\beta$
+\begin{equation}
+r_{\mathrm{nom}}
+=
+\begin{bmatrix}\dot\phi_L&\dot\phi_R\end{bmatrix}\T.
+\end{equation}
+The table supplies $Q$, $Q_x$, $Q_\phi$, clearance, and phase-boundary margins. A linearized filter constructs joint-velocity half-spaces in $y=[r\T,\beta]\T$, intersects them with one-step phase and task-rate bounds, and projects the preferred action $(r_{\mathrm{nom}},1)$ onto the resulting polytope. Because the table is trilinearly interpolated, the implementation subsequently checks the true interpolated joint state and clearance, halves the phase command when necessary, and applies a damped-Newton correction before sending the reference to the robot.
+
+This pipeline is the strongest baseline in this paper. It is not merely a nearest-neighbor table: it incorporates offline branch continuation, self-motion tracing, collision evaluation, derivative storage, online phase filtering, and nonlinear post-correction.
+
+%% =====================================================================
+\section{Problem Formulation}
+\label{sec:problem}
+
+Let
+\begin{equation}
+q=\begin{bmatrix}q_L\T&q_R\T\end{bmatrix}\T\in\mathcal Q\subset\R^{14}
+\end{equation}
+be the bimanual configuration and let $K_i(q_i)\in\SE$ be the forward kinematics of arm $i$. We define the local pose error
+\begin{equation}
+e_i(q_i,x)
+=
+\Log\!\left(T_i^d(x)^{-1}K_i(q_i)\right)^\vee
+\in\R^6,
+\label{eq:pose_error}
+\end{equation}
+and stack the two errors,
+\begin{equation}
+e(q,x)
+=
+\begin{bmatrix}e_L(q_L,x)\\e_R(q_R,x)\end{bmatrix}
+\in\R^{12}.
+\label{eq:stacked_error}
+\end{equation}
+The augmented task--robot constraint set is
+\begin{equation}
+\mathcal M
+=
+\left\{(q,x)\in\mathcal Q\times\mathcal X:\;e(q,x)=0\right\}.
+\label{eq:augmented_manifold}
+\end{equation}
+
+We define the exact local error Jacobians
+\begin{equation}
+A_q(q,x)=\frac{\partial e}{\partial q}\in\R^{12\times14},
+\qquad
+A_x(q,x)=\frac{\partial e}{\partial x}\in\R^{12\times2}.
+\label{eq:error_jacobians}
+\end{equation}
+They include the appropriate differential of the $\SE$ logarithm and a consistent choice of body or spatial twist convention. The implementation is verified against central finite differences; directly subtracting Jacobians expressed in incompatible frames is not permitted.
+
+\begin{assumption}[Regular operating chart]
+\label{ass:regular}
+Throughout a nominal local connection, $e$ is continuously differentiable, $A_q$ has full row rank 12, joint and collision-distance functions are differentiable in the evaluated neighborhood, and the trajectory remains inside one connected regular component of $\mathcal M$. For a declared regularity margin $\epsilon_q>0$ and clearance margin $\epsilon_d>0$, all local-connector claims are restricted to
+\begin{equation}
+\mathcal M_{\epsilon}
+=
+\left\{(q,x)\in\mathcal M:\sigma_{\min}(A_q)\geq\epsilon_q,\;
+d(q,x)\geq d_{\mathrm{safe}}+\epsilon_d\right\}.
+\label{eq:regular_contracted_set}
+\end{equation}
+States outside this set are reported as chart or safety-boundary exits rather than as failures of the local differential equation. The assumption does not assert that $\mathcal Y_{\mathrm{safe}}$ is nonempty; feasibility and the conditional governor response are tested separately.
+\end{assumption}
+
+Under Assumption~\ref{ass:regular}, each arm contributes one instantaneous self-motion dimension and $\mathcal M$ is locally four-dimensional. The goal is to compute a continuous lift of a prescribed nominal task-state motion $x(t)$, a task-rate scale $\beta(t)\in[0,1]$, and a commanded redundancy velocity $r(t)\in\R^2$, while maintaining bounded task error and satisfying online safety inequalities.
+
+We do not assume that a global smooth inverse map $q=Q(x,\phi_L,\phi_R)$ exists over the entire task domain. Instead, the current feasible state selects a local IK branch, and the method transports that branch until a rank, safety, or integration condition fails.
+
+%% =====================================================================
+\section{Branch-Preserving Differential Lift}
+\label{sec:lift}
+
+\subsection{Constraint-stabilized tangent equation}
+
+Differentiating Eq.~\eqref{eq:stacked_error} gives
+\begin{equation}
+\dot e
+=
+A_q(q,x)\dot q+A_x(q,x)\dot x.
+\label{eq:error_dynamics}
+\end{equation}
+Given a nominal task velocity $\dot x_{\mathrm{nom}}$, the governor chooses a rate scale $\beta\in[0,1]$ and executes $\dot x=\beta\dot x_{\mathrm{nom}}$. We impose the stabilized tangent condition
+\begin{equation}
+A_q\dot q+A_x\beta\dot x_{\mathrm{nom}}=-K_e e,
+\qquad K_e\succ0,
+\label{eq:stabilized_tangent}
+\end{equation}
+so that the continuous-time pose error is regulated locally rather than allowed to drift under numerical integration. Define the weighted right inverse
+\begin{equation}
+P_W=W^{-1}A_q\T\left(A_qW^{-1}A_q\T\right)^{-1}.
+\label{eq:weighted_right_inverse}
+\end{equation}
+The two horizontal terms are
+\begin{equation}
+h_e=-P_WK_e e,
+\qquad
+h_x=-P_WA_x\dot x_{\mathrm{nom}}.
+\label{eq:horizontal_terms}
+\end{equation}
+
+Let $W(q)\succ0$ be a joint-velocity metric. The horizontal component is the weighted minimum-norm solution of Eq.~\eqref{eq:stabilized_tangent},
+\begin{equation}
+\begin{aligned}
+h(q,x,\beta,e)
+&=
+\argmin_{v\in\R^{14}}\frac{1}{2}v\T Wv\\
+&\text{subject to}\quad
+A_qv=-A_x\beta\dot x_{\mathrm{nom}}-K_e e,
+\end{aligned}
+\label{eq:horizontal_qp}
+\end{equation}
+which has the closed form
+\begin{equation}
+h=h_e+\beta h_x.
+\label{eq:horizontal_closed_form}
+\end{equation}
+A damped inverse is used only when a conditioning threshold is approached; such events are logged and are not counted as regular-chart successes.
+
+\subsection{Vertical self-motion coordinates}
+
+Let $n_i(q_i,x)\in\R^7$ span the null space of the corresponding arm block of $A_q$. The two-arm null basis is
+\begin{equation}
+N(q,x)
+=
+\begin{bmatrix}
+ n_L&0\\
+ 0&n_R
+\end{bmatrix}
+\in\R^{14\times2},
+\qquad
+A_qN=0.
+\label{eq:null_basis}
+\end{equation}
+For compatibility with the existing AVIATOR phase convention, the default implementation normalizes each column with $\|n_i\|_\infty=1$. A metric normalization $n_i\T W_in_i=1$ is included as an ablation.
+
+An SVD basis is sign-indeterminate. At every accepted step, we orient the new basis relative to the preceding basis,
+\begin{equation}
+ n_i^{k}\leftarrow
+ \operatorname{sign}\!\left((n_i^{k-1})\T W_i n_i^{k}\right)n_i^{k},
+\label{eq:null_orientation}
+\end{equation}
+with the previous accepted direction used as the gauge reference. This simple continuation rule prevents artificial phase reversal caused solely by an SVD sign flip.
+
+Given a phase-rate command
+\begin{equation}
+r=\begin{bmatrix}\dot\phi_L&\dot\phi_R\end{bmatrix}\T,
+\end{equation}
+the lifted joint velocity and executed task velocity are
+\begin{equation}
+\boxed{\dot q=h_e+\beta h_x+Nr,}
+\label{eq:lifted_velocity}
+\end{equation}
+\begin{equation}
+\boxed{\dot x=\beta\dot x_{\mathrm{nom}}.}
+\label{eq:executed_task_rate}
+\end{equation}
+The online decision variable is therefore
+\begin{equation}
+y=\begin{bmatrix}r\\\beta\end{bmatrix}\in\R^3.
+\label{eq:lift_decision}
+\end{equation}
+The phase variables are local path coordinates satisfying $\dot\phi_i=r_i$. They are not assumed to define a single global chart through singularities or topology changes.
+
+\subsection{Relation to branch preservation}
+
+The state of the local planner is $(q,x)$, not $x$ alone. Two configurations that realize the same task state but lie on different IK components remain distinct states. Because Eq.~\eqref{eq:lifted_velocity} is integrated continuously from the current state, the method follows the selected local component rather than repeatedly resolving IK from scratch. This does not guarantee that the component remains feasible indefinitely; it guarantees only that a successful regular lift cannot discontinuously jump between disconnected components.
+
+\subsection{Branch-conditioned intrinsic metric}
+
+The horizontal lift also induces a branch-conditioned metric on task-state velocities. Ignoring the feedback term at $e=0$, define
+\begin{equation}
+H(q,x)
+=
+-W^{-1}A_q\T
+\left(A_qW^{-1}A_q\T\right)^{-1}A_x,
+\label{eq:horizontal_map}
+\end{equation}
+so that $h=H\dot x$. The joint-motion cost of a task-state increment is
+\begin{equation}
+G_H(q,x)=H(q,x)\T W(q)H(q,x).
+\label{eq:branch_metric}
+\end{equation}
+Unlike a task-space metric that depends only on $x$, $G_H$ depends on the current joint branch. In the present paper it is used for diagnostics and optional local-path smoothing; exact Christoffel symbols and two-point geodesic boundary-value problems are deliberately excluded.
+
+%% =====================================================================
+\section{Intrinsic Phase-Space Safety Filter}
+\label{sec:safety}
+
+The decomposition in Eq.~\eqref{eq:lifted_velocity} makes each instantaneous joint-velocity inequality affine in the three-dimensional action $y=[r\T,\beta]\T$. This allows safety filtering and task-rate governing to be solved as one reduced action-space problem.
+
+\subsection{Joint-velocity constraints}
+
+For componentwise velocity bounds $\dot q_{\min}\leq\dot q\leq\dot q_{\max}$,
+\begin{equation}
+\dot q_{\min}-h_e\leq Nr+\beta h_x\leq\dot q_{\max}-h_e.
+\label{eq:velocity_bounds}
+\end{equation}
+These inequalities produce 28 half-spaces in $y=[r\T,\beta]\T$.
+
+\subsection{Joint-limit dampers}
+
+For each joint, define lower and upper margins
+\begin{equation}
+g_j^-(q)=q_j-q_{j,\min},
+\qquad
+g_j^+(q)=q_{j,\max}-q_j.
+\end{equation}
+A first-order inward condition is
+\begin{equation}
+\dot g_j^{\pm}\geq-\alpha_q g_j^{\pm},
+\label{eq:joint_damper}
+\end{equation}
+which becomes an affine inequality in $y=[r\T,\beta]\T$ after substituting Eq.~\eqref{eq:lifted_velocity}. A larger protected margin can be obtained by replacing $g_j^{\pm}$ with the distance to a user-defined soft boundary.
+
+\subsection{Collision-clearance constraints}
+
+Let $d_\ell(q,x)$ be a differentiable signed distance for robot--environment, self-collision, or inter-arm pair $\ell$, positive in free space. Define
+\begin{equation}
+g_\ell(q,x)=d_\ell(q,x)-d_{\mathrm{safe}}.
+\end{equation}
+The local clearance condition is
+\begin{equation}
+\nabla_q d_\ell\T(h_e+\beta h_x+Nr)
++
+\nabla_x d_\ell\T(\beta\dot x_{\mathrm{nom}})
+\geq
+-\alpha_d g_\ell.
+\label{eq:collision_damper}
+\end{equation}
+Only active or near-active pairs are inserted into the online problem. Distances and gradients are recomputed from the current environment; they are not read from a table built for a fixed wall configuration.
+
+In the implementation, $d_\ell$ is obtained from a truncated smooth signed-distance field (SDF). Mesh distances are first evaluated on a narrow band and passed through a $C^1$ soft-min over competing witness pairs, with the smoothing width recorded as an experimental parameter. The gradient is differentiated through this field rather than selected from one nearest witness point. If the local SDF confidence or gradient norm falls below a configured threshold at a sharp edge or contact transition, the pair is marked nonsmooth, the step is shortened, and the finite-step validator becomes decisive. This avoids interpreting a witness-point switch as a physical discontinuity in $A_y$.
+
+\subsection{Convex phase-action projection}
+
+Combining Eqs.~\eqref{eq:velocity_bounds}--\eqref{eq:collision_damper} with optional phase-rate bounds gives
+\begin{equation}
+\mathcal Y_{\mathrm{safe}}(q,x)
+=
+\left\{y=\begin{bmatrix}r\\\beta\end{bmatrix}\in\R^3:A_y y\leq b_y,\ 0\leq\beta\leq1\right\}.
+\label{eq:safe_polytope}
+\end{equation}
+The executed action is
+\begin{equation}
+\begin{aligned}
+y^\star
+=
+\argmin_{y=[r\T,\beta]\T\in\R^3}\quad&
+\frac{1}{2}(r-r_{\mathrm{nom}})\T R(r-r_{\mathrm{nom}})
++\frac{\lambda_\beta}{2}(\beta-1)^2\\
+\text{subject to}\quad& y\in\mathcal Y_{\mathrm{safe}}(q,x),
+\end{aligned}
+\label{eq:phase_qp}
+\end{equation}
+where $R\succ0$ and $\lambda_\beta>0$. The preferred action is full task speed ($\beta=1$), but the same optimization reduces it whenever the full-rate slice is infeasible. The problem has only three decision variables, so it remains a small online QP.
+
+If the $\beta=1$ slice is empty, the same reduced problem invokes a task-rate governor rather than terminating the control loop. The governor is evaluated only after the current state quantities have been computed. For $\dot x_{\beta}=\beta\dot x_{\mathrm{nom}}$, the horizontal lift is affine in $\beta$:
+\begin{equation}
+h(\beta)=h_e+\beta h_x,
+\qquad
+h_e=-P_WK_e e,
+\qquad
+h_x=-P_WA_x\dot x_{\mathrm{nom}}.
+\label{eq:governed_horizontal_components}
+\end{equation}
+Consequently, the right-hand side of every joint-velocity, damper, and smoothed-distance half-space is affine in $(\beta,r)$. We determine the largest feasible rate as part of the three-variable reduced QP; for diagnostics, the maximal feasible rate is equivalently characterized by
+\begin{equation}
+\begin{aligned}
+\beta^*=\max_{\beta,r,\rho}\quad&\beta-\lambda\rho\\
+\text{subject to}\quad& A_y\begin{bmatrix}r\\\beta\end{bmatrix}\leq b_y+\rho\mathbf 1,\\
+&\beta_{\mathrm{stop}}\leq\beta\leq1,\qquad \rho\geq0,
+\end{aligned}
+\label{eq:governor_lp}
+\end{equation}
+with a large fixed penalty $\lambda$. A zero slack solution is required for an accepted step; if none exists above $\beta_{\mathrm{stop}}$, the process is paused and a retract or operator-handover state is commanded. The executed rate and the phase action are logged separately:
+\begin{equation}
+\beta^*=\max\{\beta\in[0,1]:\exists r\;[r\T,\beta]\T\in\mathcal Y_{\mathrm{safe}}(q,x)\},
+\qquad
+\dot x_{\mathrm{exec}}=\beta^*\dot x_{\mathrm{nom}}.
+\label{eq:task_governor}
+\end{equation}
+The search stops at $\beta_{\mathrm{stop}}$; below that value the process is paused and a retract or operator-handover state is commanded. This makes a narrow cockpit bottleneck observable as a slowdown or declared stop, and prevents the empty-polytope case from being silently counted as a successful phase command.
+
+\subsection{Finite-step validation}
+
+The inequalities above are instantaneous. They do not by themselves guarantee that a finite integration step remains safe under nonlinear kinematics and distance fields. Every candidate step is therefore checked using the full forward kinematics, task error, joint limits, and collision model. A rejected step is retried with half the step size until $\Delta t_{\min}$ is reached. Optional nonlinear correction is treated as a recovery mechanism and its invocation count is reported; it is not part of the nominal step.
+
+\subsection{Interface to contact-aware low-level control}
+
+The differential lift supplies a complete joint-velocity reference, not actuator torque. It is therefore used as the nominal feed-forward command, while the compliant controller contributes only a local force-induced correction:
+\begin{equation}
+v_{\mathrm{comp},i}(t)=M_{d,i}^{-1}\int_{0}^{t}
+\left(F_{\mathrm{ext},i}(\tau)-K_{d,i}\dot\xi_i(\tau)-K_{p,i}\xi_i(\tau)\right)\,\mathrm d\tau,
+\qquad
+\dot q_{i,\mathrm{cmd}}=\dot q_{i,\mathrm{lift}}+\Delta\dot q_i,
+\qquad
+\Delta\dot q_i=J_i^{\#}(q_i)v_{\mathrm{comp},i},
+\label{eq:impedance_interface}
+\end{equation}
+where $\xi_i$ is the Cartesian pose error, $F_{\mathrm{ext},i}$ is the measured or estimated external wrench, and $M_{d,i},K_{d,i},K_{p,i}\succ0$ are desired compliance parameters. The correction is rate-saturated and passed through the same joint, clearance, and task-rate limits before execution. The full $\dot q_{i,\mathrm{lift}}=(h_e+\beta^\star h_x+N r^\star)_i$ therefore remains the nominal branch-preserving command; no second null-space projection is applied to it. A dual-arm internal-force monitor projects the measured wrench pair onto the grasp-constraint null space; the resulting norm and each motor-current peak are logged with the clearance and task-error traces. Trials that meet geometric tolerances but exceed the predeclared wrench or current limits are classified as contact-force failures. This separates the kinematic contribution of the present paper from the force-control policy used to execute it.
+
+%% =====================================================================
+\section{Midpoint Integration and Local Connection}
+\label{sec:integration}
+
+We use an explicit midpoint method because it requires only first-order kinematics while substantially reducing drift relative to forward Euler.
+
+\begin{algorithm}[t]
+\caption{One adaptive branch-preserving differential-lift step}
+\label{alg:lift_step}
+\begin{algorithmic}[1]
+\Require Accepted state $(q_k,x_k)$, nominal task rate $\dot x_{\mathrm{nom},k}$, nominal phase rate $r_{\mathrm{nom}}$, previous null basis $N_{k-1}$, step $\Delta t$
+\Ensure Accepted $(q_{k+1},x_{k+1})$, executed action $(r_k^\star,\beta_k^\star)$, diagnostics
+\State Compute $e_k,A_{q,k},A_{x,k}$ and the oriented basis $N_k$
+\State Build $\mathcal Y_{\mathrm{safe},k}$ from Eq.~\eqref{eq:safe_polytope} using $h_{e,k}+\beta h_{x,k}+N_kr$
+\State Solve the reduced QP in Eq.~\eqref{eq:phase_qp}; record $\beta_k^\star$ and $\delta_k$
+\If{$\mathcal Y_{\mathrm{safe},k}=\varnothing$ or $\beta_k^\star<\beta_{\mathrm{stop}}$}
+    \State Command a bounded pause/retract and return \textsc{stopped}
+\EndIf
+\State $\dot x_k\gets\beta_k^\star\dot x_{\mathrm{nom},k}$ and $v_k\gets h_{e,k}+\beta_k^\star h_{x,k}+N_kr_k^\star$
+\State Predict midpoint $q_{1/2}\gets q_k+(\Delta t/2)v_k$, $x_{1/2}\gets x_k+(\Delta t/2)\dot x_k$
+\State Recompute $e_{1/2},A_{q,1/2},A_{x,1/2},N_{1/2}$; orient $N_{1/2}$ using $N_k$
+\State Rebuild the midpoint $\mathcal Y_{\mathrm{safe},1/2}$ and solve for $(r_{1/2}^\star,\beta_{1/2}^\star)$
+\If{the midpoint action set is empty or fails the rate threshold}
+    \State halve $\Delta t$ and restart from the accepted state; if $\Delta t<\Delta t_{\min}$, return \textsc{stopped}
+\EndIf
+\State $v_{1/2}\gets h_{e,1/2}+\beta_{1/2}^\star h_{x,1/2}+N_{1/2}r_{1/2}^\star$
+\State Candidate update: $q^+\gets q_k+\Delta t\,v_{1/2}$, $x^+\gets x_k+\Delta t\,\beta_{1/2}^\star\dot x_{\mathrm{nom},k}$
+\If{nonlinear validation of $(q^+,x^+)$ succeeds}
+    \State accept $q_{k+1}\gets q^+$, $x_{k+1}\gets x^+$
+\Else
+    \State retry with $\Delta t\gets\Delta t/2$; fail if $\Delta t<\Delta t_{\min}$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+The midpoint solve is not treated as a second independent command. It is a consistency check of the same reduced action formulation; the candidate is accepted only if its action set is nonempty and the full-step candidate passes the nonlinear validator. A sudden loss of clearance at the midpoint therefore causes step rejection and rate re-governance, rather than combining a start-point phase action with an incompatible midpoint action.
+
+A local connector applies Algorithm~\ref{alg:lift_step} along a prescribed task-state segment and a phase-rate profile. For benchmark fairness, all compared connectors use the same endpoint tolerance, collision model, maximum velocity, maximum number of evaluations, and independent path validator.
+
+The method can also be used as a steering primitive in a planner whose state is $(q,x)$. Crucially, nodes with identical $x$ but different $q$ are not merged. This allows a graph or tree to retain multiple IK sheets at the same task state.
+
+%% =====================================================================
+\section{Analysis}
+\label{sec:analysis}
+
+\begin{remark}[Dimension and decomposition]
+\label{rem:dimension_decomposition}
+Under Assumption~\ref{ass:regular}, the regular level-set theorem gives $\dim\mathcal M=14+2-12=4$. The KKT conditions of Eq.~\eqref{eq:horizontal_qp} give the unique $W$-minimum-norm horizontal lift, and the complete stabilized solution set is $h_e+\beta h_x+Nr$ with $r\in\R^2$ and $\beta\in[0,1]$. These are standard consequences of the regular level-set theorem and weighted pseudoinverse algebra; they are included to fix the notation and are not claimed as independent contributions.
+\end{remark}
+
+\begin{proposition}[ISS bound for task error]
+\label{prop:error_decay}
+Define the tangent residual
+\begin{equation}
+\delta=A_q\dot q+A_x\dot x+K_e e.
+\label{eq:tangent_residual}
+\end{equation}
+Then the error dynamics satisfy
+\begin{equation}
+\dot e=-K_e e+\delta.
+\end{equation}
+If $K_e=K_e\T\succeq\lambda_e I$ for some $\lambda_e>0$ and $\|\delta(t)\|\leq\bar\delta$ on an interval, then
+\begin{equation}
+\|e(t)\|
+\leq e^{-\lambda_e t}\|e(0)\|
++\frac{1-e^{-\lambda_e t}}{\lambda_e}\bar\delta.
+\label{eq:iss_error_bound}
+\end{equation}
+Thus exact tangent enforcement is the special case $\bar\delta=0$; finite-step integration, active safety constraints, governor reduction, and slack are reported through the measured residual rather than hidden behind an ideal exponential claim. The discrete Lyapunov inequality in Eq.~\eqref{eq:discrete_lyapunov_contract} is retained only as a numerical diagnostic with declared constants.
+\end{proposition}
+\begin{proof}
+Variation of constants gives
+\[
+e(t)=e^{-K_e t}e(0)+\int_0^t e^{-K_e(t-\tau)}\delta(\tau)\,\mathrm d\tau.
+\]
+The spectral bound $\|e^{-K_e t}\|\leq e^{-\lambda_e t}$ and $\|\delta(\tau)\|\leq\bar\delta$ yield Eq.~\eqref{eq:iss_error_bound} after evaluating the scalar integral.
+\end{proof}
+For numerical diagnostics only, with $V_k=\tfrac12 e_k\T P e_k$ and $P=P\T\succ0$, we record the observed contract
+\begin{equation}
+V_{k+1}-V_k\leq-c\Delta t\,V_k+C\Delta t^2,
+\label{eq:discrete_lyapunov_contract}
+\end{equation}
+when the declared step-size and residual conditions hold; this observation is not used as a global safety guarantee.
+
+\begin{theorem}[Equivalence of full and reduced velocity feasibility]
+\label{thm:full_reduced_equivalence}
+Assume $A_q$ has full row rank and $N$ spans $\ker A_q$. For a fixed state $(q,x,e)$ and nominal task velocity $\dot x_{\mathrm{nom}}$, define the full feasible velocity set
+\begin{equation}
+\mathcal F=\left\{(\dot q,\beta):
+A_q\dot q+A_x\beta\dot x_{\mathrm{nom}}=-K_e e,\;
+C_q\dot q+C_x\beta\dot x_{\mathrm{nom}}\leq b,\;0\leq\beta\leq1\right\}.
+\label{eq:full_feasible_set}
+\end{equation}
+Then every $(\dot q,\beta)\in\mathcal F$ has a representation
+\begin{equation}
+\dot q=h_e+\beta h_x+Nr,
+\end{equation}
+for some $r\in\R^2$, and substitution gives exactly the reduced set $\mathcal Y_{\mathrm{safe}}$ in Eq.~\eqref{eq:safe_polytope}. Hence the reduced QP in Eq.~\eqref{eq:phase_qp} has the same feasible velocities and optimum objective value as the corresponding full joint-space QP, up to the chosen parameterization of the objective.
+\end{theorem}
+\begin{proof}
+The weighted right inverse gives a particular solution $h_e+\beta h_x$ of the equality constraint. The difference between any other equality-feasible $\dot q$ and this particular solution lies in $\ker A_q$, so it equals $Nr$. Replacing $\dot q$ by this affine expression in every linear inequality gives the exact pullback $A_y y\leq b_y$; no feasible velocity is added or removed.
+\end{proof}
+
+\begin{definition}[Phase-action feasibility classes]
+For Eq.~\eqref{eq:safe_polytope}, let $\rho_{\mathrm{ch}}$ denote the largest radius of a Euclidean ball in the three-dimensional $y$-space contained in the feasible set. We classify the set as `feasible` when it is nonempty, `degenerate-feasible` when it is nonempty but $\rho_{\mathrm{ch}}<\rho_{\min}$, and `robust-feasible` when $\rho_{\mathrm{ch}}\geq\rho_{\min}$ for a predeclared $\rho_{\min}>0$. These classes are reported separately.
+\end{definition}
+
+\begin{proposition}[Convexity of the intrinsic action set]
+\label{prop:convexity}
+If all instantaneous safety constraints are affine in $(\dot q,\dot x)$ and $\dot q=h_e+\beta h_x+Nr$, $\dot x=\beta\dot x_{\mathrm{nom}}$, then $\mathcal Y_{\mathrm{safe}}$ in Eq.~\eqref{eq:safe_polytope} is a convex polyhedron in $y=[r\T,\beta]\T$. It is a convex polytope after the bounds $0\leq\beta\leq1$ and finite phase-rate bounds are applied, possibly empty.
+\end{proposition}
+\begin{proof}
+Each linear safety inequality is an affine half-space in $y$, and $0\leq\beta\leq1$ and the phase-rate limits are also half-spaces. Their intersection is convex.
+\end{proof}
+
+\begin{lemma}[Local component continuity]
+\label{prop:branch}
+Suppose Algorithm~\ref{alg:lift_step} produces a continuous accepted trajectory that remains in one connected component of $\mathcal M_{\epsilon}$. Then the trajectory cannot jump discontinuously to a different disconnected IK component. This is a local continuation statement; it does not identify components from a scalar descriptor and does not imply that a feasible continuation exists over the full task domain.
+\end{lemma}
+\begin{proof}
+The image of a connected time interval under a continuous map is connected. A disconnected IK component cannot be reached without leaving the current connected component, violating continuity, or crossing a point at which the chart assumptions fail.
+\end{proof}
+
+\begin{remark}[Scope of local component continuity]
+The lemma is not a singularity-crossing result. It says that a regular continuous lift preserves the selected component; it does not guarantee that the component extends through a rank loss, a joint-limit boundary, or a topological change of the self-motion set.
+\end{remark}
+
+\subsection{Per-step complexity}
+
+For the AVIATOR task, the dominant dense linear solve in Eq.~\eqref{eq:horizontal_closed_form} is a $12\times12$ system, and the reduced phase filter has only three decision variables $(r_L,r_R,\beta)$. In practice, collision-distance and gradient evaluations may dominate the linear algebra. We therefore report not only wall-clock time but also counts of forward kinematics, Jacobian evaluations, distance queries, IK calls, nonlinear projections, and rejected steps.
+
+%% =====================================================================
+\section{Experimental Methodology}
+\label{sec:experiments}
+
+\subsection{Research questions}
+
+The experiments are designed around five questions:
+\begin{description}
+    \item[RQ1:] Does the online lift reproduce the differential structure of the existing phase-consistent table in regular regions?
+    \item[RQ2:] Within a validated regular component, does continuous lifting maintain local continuity and closure error without introducing descriptor jumps?
+    \item[RQ3:] Does the intrinsic phase filter maintain task accuracy and safety without relying on precomputed phase intervals?
+    \item[RQ4:] What safety, progress, and latency trade-offs arise relative to the mature LUT pipeline and its rebuilt variant?
+    \item[RQ5:] Does endpoint-aware backtracking retain the safety result on replayed and held-out states across the tested step sizes?
+\end{description}
+
+\subsection{Compared methods}
+
+\begin{table}[t]
+\centering
+\caption{Planned comparison. All methods use the same robot model, target poses, collision geometry, state limits, and success criteria.}
+\label{tab:baselines}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.65\linewidth}}
+\toprule
+Method & Description \\
+\midrule
+LUT-native & Existing phase-consistent table, trilinear interpolation, online phase polygon, finite-step backtracking, and damped-Newton post-correction. \\
+Pointwise IK & Task-state discretization with warm-started nonlinear IK at each point; previous joint state is the seed. \\
+DLS/QP differential IK & Standard damped least-squares or joint-space QP tracking with conventional null-space secondary objectives. \\
+Implicit projection & Interpolate or extend in augmented $(q,x)$ space and project with Newton/pseudoinverse correction. \\
+Atlas / TangentBundle & Strong constrained-manifold connector implemented through an established constrained-planning framework. \\
+Proposed \method & Horizontal--vertical lift, null-basis continuation, task-error feedback, intrinsic phase filter, midpoint integration, and adaptive validation. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Experiment 0: regular-component validation gate}
+
+Before any large paired matrix, we run a deterministic Node~0 gate on frozen regular states. We first compare online quantities against independent references in regular table cells:
+\begin{enumerate}
+    \item $A_q$ and $A_x$ versus central finite differences of Eq.~\eqref{eq:pose_error};
+    \item online null vectors versus local finite differences of stored $Q_i(x,\phi_i)$;
+    \item $H$ versus the table derivative $Q_x$ after resolving the phase gauge;
+    \item $N$ versus the table derivative $Q_\phi$;
+    \item Euler and midpoint task-error drift under step-size refinement;
+    \item feasibility, recovered velocity, and objective agreement between a full joint-space QP and the reduced $y=[r\T,\beta]\T$ QP; and
+    \item governor cases with $\beta=1$ feasible, only $0<\beta<1$ feasible, and no feasible $\beta\geq\beta_{\mathrm{stop}}$.
+\end{enumerate}
+Reported statistics include median, interquartile range, 95th percentile, and worst case over held-out states. Rank-deficient or branch-inconsistent table cells are reported separately rather than silently discarded. The full/reduced QP test and the independent endpoint/collocation checker must pass before the formal paired trials are started.
+
+\subsection{Experiment 1: local connector benchmark}
+
+Each trial begins from the same feasible $(q_0,x_0)$ and follows the same task-state segment and nominal phase command. We stratify trials by:
+\begin{itemize}
+    \item distance to joint limits;
+    \item minimum collision clearance;
+    \item smallest singular value of $A_q$;
+    \item open-arc versus closed-loop self-motion label in the LUT baseline; and
+    \item task-segment length and integration resolution.
+\end{itemize}
+
+The primary metrics are complete-connection success, branch-jump rate, fraction of the segment completed before failure, maximum translation and rotation errors, maximum wrapped joint increment, minimum joint margin, minimum clearance, and the number of nonlinear corrections or IK restarts.
+
+For an analytic planar-arm unit test, branch identity is labeled by elbow sign. For the seven-degree-of-freedom arms, branch continuity is assessed by the deviation from the predicted joint increment and by a continuous elbow-swivel descriptor. The exact threshold is frozen before the final benchmark.
+
+\subsection{Experiment 2: nominal AVIATOR trajectory}
+
+All methods execute the same nominal $(\theta,s)$ trajectories, initial configurations, phase commands, velocity limits, wall geometry, and control period. This experiment asks whether the online method can reproduce the mature table-based behavior without dense precomputation. Because a table lookup is expected to be extremely fast in the fixed nominal setting, the principal criteria are trajectory completion, task accuracy, branch continuity, and safety; online latency is reported without assuming that the proposed method must beat raw lookup time.
+
+\subsection{Experiment 3: matched LUT qualification and held-out replay}
+
+The completed qualification compares corrected stale-LUT execution, rebuilt-LUT execution, the ungoverned online lift, and endpoint-aware online backtracking on matched state manifests. The N6 cells include nominal, tight, and shifted settings; N7 fixes a common 90-state manifest and evaluates the endpoint-aware schedule; N8 replays that manifest and adds a held-out seed manifest at $\Delta t\in\{0.0025,0.005,0.010\}$ s. We report completion, task progress, rejected candidates, reconstruction time and storage where available, endpoint/swept validation, and latency. These protocols test finite-step robustness and a controlled stale-versus-rebuilt comparison; they do not establish adaptation to arbitrary geometry or task changes.
+
+\subsection{Experiment 4: planner and learned-policy interface}
+
+The high-level interface remains
+\begin{equation}
+\pi(o_t)\mapsto r_{\mathrm{nom},t}\in\R^2.
+\end{equation}
+For the primary study, the policy is a black-box actor that outputs only $r_{\mathrm{nom}}$; identical action traces are replayed through the LUT backend and the proposed backend. This isolates the motion-generation layer from policy training and prevents the paper from presenting RL as a second algorithmic contribution. An optional appendix study may fine-tune the same actor with online geometric margins in place of LUT-derived phase-boundary features, but it must report the observation, action, reward, seed, and training budget separately from the deterministic connector comparison.
+
+\subsection{Experiment 5: physical cockpit-workcell validation}
+
+A physical experiment is a planned follow-up rather than part of the evidence reported here. A dual-arm industrial workcell carries the instrumented cockpit module through the same roll--translation operation used in simulation. The test matrix contains a free-space transport, a nominal guided insertion, a calibrated obstacle perturbation, and a controlled contact case with a compliant fixture. Each trial uses the same commanded $\dot q$ interface and records joint position/velocity, motor current, tool pose, six-axis wrench when available, internal-force proxy, task-rate scale $\beta$, clearance, and controller latency. The acceptance criteria are: (i) completion of the process window, (ii) pose and clearance tolerances, (iii) no joint-limit or collision violation, and (iv) wrench/current peaks below the predeclared process limits. We report traces and per-trial statistics rather than a single averaged force number, because contact transients and arm-to-arm load imbalance are safety-relevant.
+
+The low-level controller, robot model, sensor sampling rate, and process limits are apparatus-specific and must be filled from the actual workcell log before submission. The manuscript does not claim a successful physical deployment until those measurements are available.
+
+\subsection{Metrics and statistical protocol}
+
+A trial is successful only if the full task is completed without task-error, joint-limit, collision, velocity, or numerical-validity violations. Failures are classified rather than merged into a single timeout category. We report:
+\begin{itemize}
+    \item complete-task success rate and confidence intervals;
+    \item failure progress and failure cause;
+    \item maximum and 95th-percentile translation and rotation error;
+    \item branch jumps and nonlinear recovery events;
+    \item tangent residual $\|\delta\|$, task-rate scale $\beta$ (mean, minimum, and time below one), and governor interventions;
+    \item minimum collision and joint-limit margins;
+    \item joint path length, peak velocity, and acceleration proxy;
+    \item offline construction time and storage;
+    \item online latency, kinematics calls, distance queries, IK calls, projection iterations, QP solves, and step rejections;
+    \item safety-stop reason and progress at stop, with zero-speed dwell separated from genuine task progress.
+\end{itemize}
+
+Development instances are separated from held-out test instances. Method parameters and success thresholds are frozen before the final random-seed runs. Scene-level uncertainty is reported in addition to within-scene seed variation.
+
+%% =====================================================================
+\section{Results}
+\label{sec:results}
+
+The evidence is separated into analytical or numerical contract checks, controlled simulation results, and claims that remain untested. All historical N1--N8 result files were treated as read-only. The final interpretation is local and conditional on the tested regular task region, scenes, speeds, checker, and numerical budgets.
+
+\subsection{Node 0: numerical contract and reduced-QP validation}
+
+On 32 held-out MuJoCo states (Table~\ref{tab:node0_validation}), the analytic $A_q$ and $A_x$ matrices agreed with independent central differences to maximum infinity-norm errors of $3.84\times10^{-10}$ and $4.26\times10^{-10}$, respectively. The smallest sampled $\sigma_{\min}(A_q)$ was $0.087$. The reduced three-variable QP and the full joint-space QP agreed on feasibility and objective value; the maximum recovered-velocity difference was $3.55\times10^{-15}$. Governor probes produced the intended cases of full task rate, controlled slowdown, and declared stop. These checks support the local algebra and implementation contract. They do not establish global properties of the IK solution set or a runtime advantage for the reduced representation.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Node~0 numerical contract and reduced/full QP validation.}
+\label{tab:node0_validation}
+\begin{tabularx}{\textwidth}{@{}p{0.29\textwidth}p{0.12\textwidth}X X@{}}
+\toprule
+Check & Samples & Result & Evidence boundary \\
+\midrule
+Analytic $A_q$ vs. central difference & 32 states & max $\|\cdot\|_\infty=3.84\times10^{-10}$ & Supports implementation accuracy on tested regular states. \\
+Analytic $A_x$ vs. central difference & 32 states & max $\|\cdot\|_\infty=4.26\times10^{-10}$ & Supports implementation accuracy on tested regular states. \\
+Regularity & 32 states & minimum $\sigma_{\min}(A_q)=0.087$ & Does not establish a global rank bound. \\
+Reduced/full QP recovered velocity & 32 states & maximum difference $3.55\times10^{-15}$ & Numerical consistency; no runtime claim. \\
+Governor probes & 3 cases & $\beta=1$, controlled slowdown at $\beta=0.4$, and declared stop & Verifies the three intended local states. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\subsection{N1: strict branch-search control}
+
+The independent atlas search (Table~\ref{tab:n1_branch_negative}) used 128 IK starts per arm, local continuation in $(\theta,s,\phi)$, and frozen descriptor and closure criteria. The right arm retained two base components with local continuation samples, but the strict five-by-five extension covered only 5/25 common cells per seed; no dual-arm state had two stable components under the wider gate. Across 24 frozen stress cases, no case satisfied the predeclared contrast requiring a valid Pointwise or DLS component jump, an independent descriptor change of at least $0.04$ rad, small closure residual, and a lift trajectory reaching the same step. The only raw DLS/$H+Nr$ label change had a descriptor change of about $0.0075$ rad and was rejected. N1 is therefore a negative control: it does not support a comparative branch-jump advantage for the lift.
+
+\begin{table}[t]
+\centering
+\small
+\caption{N1 strict branch-search negative control.}
+\label{tab:n1_branch_negative}
+\begin{tabularx}{\textwidth}{@{}p{0.36\textwidth}p{0.20\textwidth}X@{}}
+\toprule
+Item & Result & Decision \\
+\midrule
+IK starts per arm & 128 & Independent atlas initialization. \\
+Frozen stress cases & 24 & All cases used the predeclared jump criteria. \\
+Strict valid candidates & 0 & No comparative branch-jump case was found. \\
+Valid Pointwise jumps & 0 & Negative control. \\
+Valid DLS jumps & 0 & Negative control. \\
+Valid lift jumps & 0 & No comparative advantage inferred. \\
+Right-arm base components & 2; only 5/25 common cells per seed & Local coverage was insufficient for a dual-arm stable contrast. \\
+Descriptor near miss & $0.0075$ rad vs. frozen gap $0.04$ rad & Rejected by the independent descriptor rule. \\
+Final interpretation & Negative result & No branch-jump-prevention claim is made. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\subsection{N2--N4: candidate generation, nonlinear acceptance, and finite-step error}
+
+The frozen v3 matrix contains 90 paired trials (Table~\ref{tab:n2_stop_classification}). The filtered lift and full joint-space QP both completed 44/90 trials with zero accepted collision or joint-limit violations. Among 46 stopped trials per filtered formulation, 44 were nonlinear endpoint mismatches, one was a swept-clearance failure, and one was a joint-limit failure; no stop was classified as true local infeasibility at $\beta_{\mathrm{stop}}$, and reduced/full classifications agreed for every pair. This establishes the need for a two-layer protocol: linear QP feasibility creates a candidate, while an independent nonlinear endpoint/swept checker makes the acceptance decision.
+
+\begin{table}[t]
+\centering
+\small
+\caption{N2 endpoint-validation stop classification for the frozen v3 matrix.}
+\label{tab:n2_stop_classification}
+\begin{tabularx}{\textwidth}{@{}p{0.16\textwidth}p{0.08\textwidth}p{0.14\textwidth}p{0.12\textwidth}p{0.14\textwidth}p{0.15\textwidth}X@{}}
+\toprule
+Method & Stops & Endpoint mismatch & Swept failure & Joint-limit failure & True local infeasibility & Instrumentation unknown \\
+\midrule
+\texttt{lift\_filtered} & 46 & 44 & 1 & 1 & 0 & 0 \\
+\texttt{full\_joint\_qp} & 46 & 44 & 1 & 1 & 0 & 0 \\
+\midrule
+Reduced/full classification disagreement & \multicolumn{6}{l}{0 paired disagreements} \\
+\bottomrule
+\end{tabularx}
+\vspace{1mm}
+\parbox{0.94\textwidth}{\footnotesize The 92 stop rows were fully instrumented. Endpoint mismatch means a feasible linear candidate failed the independent nonlinear endpoint check; it is not evidence of global task infeasibility.}
+\end{table}
+
+
+The N3 diagnostic replay (Table~\ref{tab:n3_finite_step}) produced 53,200 complete step records over three step sizes, with no missing fields. The median absolute clearance prediction error was $3.74\times10^{-9}$, $1.60\times10^{-8}$, and $6.76\times10^{-8}$ m at $\Delta t=0.0025$, $0.005$, and $0.01$ s, respectively; the descriptive log--log slope was 2.087. Linearization optimism occurred in 140/26,600 steps (0.526\%) per filtered method and was concentrated in the smallest predicted-margin bin. The negative error tail remained nonzero. Reduced and full QP traces had indistinguishable aggregate classifications and error distributions at floating-point precision. These are finite-step observations, not a universal curvature or continuous-time safety theorem.
+
+\begin{table}[t]
+\centering
+\small
+\caption{N3 finite-step clearance prediction error. Values are aggregated over the two filtered formulations; each method contributed the same number of records.}
+\label{tab:n3_finite_step}
+\begin{tabularx}{\textwidth}{@{}lrrrrX@{}}
+\toprule
+$\Delta t$ (s) & Records/method & Median $|\Delta d|$ (m) & Optimism rate & Conservative rejection rate & Interpretation \\
+\midrule
+0.0025 & 15,250 & $3.74\times10^{-9}$ & 0.295\% & 0.0066\% & Small finite-step error; reduced/full agree. \\
+0.005 & 7,611 & $1.60\times10^{-8}$ & 0.604\% & 0.013\% & Boundary optimism increases with step size. \\
+0.010 & 3,739 & $6.76\times10^{-8}$ & 1.31\% & 0.027\% & Negative tail remains; nonlinear checking is necessary. \\
+\midrule
+All steps & 26,600 per method & descriptive slope $2.087$ & -- & -- & Descriptive finite-step scaling, not a universal second-order law. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+N4 evaluated five predeclared linear clearance margins (Table~\ref{tab:n4_margin}) over 135 cells and 281,262 step records. A 0.50-mm margin reduced observed optimism from 0.526\% to 0.133\% and increased complete trial rows from 48.15\% to 83.70\%, but completion at $\Delta t=0.01$ s remained 48/90 and latency and governor use increased. The margin is therefore an empirical safety--progress trade-off; it is not part of a universal guarantee.
+
+\begin{table}[t]
+\centering
+\small
+\caption{N4 predeclared clearance-margin ablation. Rates are from the filtered method; full-QP values were numerically identical at reported precision.}
+\label{tab:n4_margin}
+\begin{tabularx}{\textwidth}{@{}lrrrrX@{}}
+\toprule
+$m_{\mathrm{curv}}$ (mm) & Optimism & Complete trials & Median progress & Median latency (ms) & Interpretation \\
+\midrule
+0 & 0.526\% & 48.15\% & 0.9746 & 72.0 & Baseline finite-step boundary. \\
+0.25 & 0.288\% & 67.41\% & 0.9998 & 80.2 & Less optimism with additional governor use. \\
+0.50 & 0.133\% & 83.70\% & 0.9999 & 79.1 & Best tested trade-off, but not uniform across $\Delta t$. \\
+\midrule
+Scope & \multicolumn{5}{l}{At $\Delta t=0.010$ s, the 0.50-mm margin still completed only 48/90 trials.} \\
+\bottomrule
+\end{tabularx}
+\vspace{1mm}
+\parbox{0.94\textwidth}{\footnotesize The margin changes only the linear candidate constraint. The nonlinear endpoint/swept checker remains the final acceptance authority; no universal curvature margin is claimed.}
+\end{table}
+
+
+\subsection{N6: LUT qualification}
+
+On the common 90-state comparison (Table~\ref{tab:n6_lut}), the corrected stale LUT completed 52/90 trials and the ungoverned online lift completed 42/90. The online method had zero rejected clearance candidates but a median mean-step latency of 67.15 ms, compared with 10.46 ms for the LUT. In the rebuilt-table comparison, rebuilt LUTs completed 22/30, 21/30, and 22/30 trials in nominal, tight, and shifted settings, while the corresponding online runs completed 15/30, 13/30, and 15/30. Each rebuilt table required about 51.75--52.23 s and 186 MiB in the recorded environment. Thus the study does not support online non-inferiority, lower latency, or a universal reconstruction-cost advantage. It supports the narrower observation that online continuation avoids rebuilding a table and exposes auditable nonlinear stops; in the tight stale-table perturbation it completed 10/30 versus 8/30 for the stale LUT.
+
+\begin{table}[t]
+\centering
+\small
+\caption{N6 LUT qualification and reconstruction comparison.}
+\label{tab:n6_lut}
+\begin{tabularx}{\textwidth}{@{}p{0.24\textwidth}p{0.18\textwidth}p{0.18\textwidth}p{0.18\textwidth}X@{}}
+\toprule
+Comparison & LUT completion & Online completion & Latency / reconstruction & Interpretation \\
+\midrule
+Stale common matrix (90 trials) & 52/90; 10.46 ms & 42/90; 67.15 ms & Online had zero rejected clearance candidates & Table-free online path, but lower completion and higher latency in this matrix. \\
+Rebuilt nominal (30 trials) & 22/30 & 15/30 & Build 51.99 s; 186 MiB & Rebuilt LUT higher completion. \\
+Rebuilt tight (30 trials) & 21/30 & 13/30 & Build 52.23 s; 186 MiB & No online non-inferiority. \\
+Rebuilt shifted (30 trials) & 22/30 & 15/30 & Build 51.75 s; 186 MiB & No universal adaptation advantage. \\
+Tight stale perturbation & 8/30 & 10/30 & Conditional local robustness result & Does not generalize to arbitrary geometry. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\subsection{N7--N8: endpoint-aware governor and held-out finite-step qualification}
+
+N7 replayed the same 90-state manifest (Table~\ref{tab:n7_n8_governor}) through stale LUT, rebuilt LUT, online lift, and endpoint-aware governor. At zero margin, endpoint-aware backtracking improved online completion from 42/90 to 49/90 with seven recoveries and no regressions. With the predeclared 0.25-mm and 0.50-mm margins, the governor completed 90/90 trials and accepted no unsafe endpoint or swept-clearance step; the 0.25-mm setting had a P05 progress of 0.918 and p95 latency of about 168 ms, while the 0.50-mm setting had P05 progress about 0.998 and median latency about 67 ms. These results are conditional on the tested checker, scenes, and $\Delta t=0.005$ s.
+
+N8 added an exact N7 replay manifest and a held-out manifest, three step sizes, and four methods, producing 2160 trial rows. The endpoint-aware governor completed 90/90 trials at $\Delta t=0.0025$ and $0.005$ s and 89/90 at $0.010$ s on both manifests. It recovered 100 of 540 paired baseline-incomplete trials and caused zero complete-to-incomplete regressions; no accepted online step violated endpoint or swept clearance. Descriptive finite-step slopes for median absolute clearance error were approximately 1.92 for the unbacktracked lift and 2.01 for the governor on both manifests. At $\Delta t=0.010$ s, the unbacktracked lift retained about 1.1--1.2\% optimism samples, whereas the governor trace had none. The governor's median latency was about 67--68 ms and its p95 latency reached about 172--176 ms at the largest step size, compared with about 10.4--10.7 ms for LUT execution. Held-out repetition therefore supports a finite operating range and a safety/progress/latency trade-off, not a universal margin or safety guarantee.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\caption{N7 endpoint-aware governor and N8 held-out finite-step qualification.}
+\label{tab:n7_n8_governor}
+\begin{tabularx}{\textwidth}{@{}p{0.20\textwidth}lrrrrr@{}}
+\toprule
+Manifest / setting & $\Delta t$ (s) & Completion & P05 progress & Median / p95 latency (ms) & Recovered & Accepted violations \\
+\midrule
+N7, $m_{\mathrm{curv}}=0$ & 0.005 & 49/90 & 0.430 & 74.1 / 132.1 & 7 & 0 \\
+N7, $m_{\mathrm{curv}}=0.25$ mm & 0.005 & 90/90 & 0.918 & 67.9 / 168.5 & 45 & 0 \\
+N7, $m_{\mathrm{curv}}=0.50$ mm & 0.005 & 90/90 & 0.998 & 67.4 / 68.1 & 2 & 0 \\
+N8 replay & 0.0025 & 90/90 & 0.999 & 66.8 / 74.3 & 100/540 total & 0 \\
+N8 held-out & 0.0025 & 90/90 & 0.997 & 66.7 / 67.2 & -- & 0 \\
+N8 replay & 0.005 & 90/90 & 0.999 & 66.6 / 67.1 & -- & 0 \\
+N8 held-out & 0.005 & 90/90 & 0.997 & 68.2 / 96.9 & -- & 0 \\
+N8 replay & 0.010 & 89/90 & 0.923 & 68.1 / 171.7 & -- & 0 \\
+N8 held-out & 0.010 & 89/90 & 0.895 & 72.7 / 175.5 & -- & 0 \\
+\bottomrule
+\end{tabularx}
+\vspace{1mm}
+\parbox{0.94\textwidth}{\footnotesize N8 contains 2160 rows from two 90-state manifests, three step sizes, and four methods. The governor recovered 100 of 540 paired baseline-incomplete trials and caused no complete-to-incomplete regression.}
+\end{table}
+
+
+\subsection{Evidence boundary}
+
+Taken together, the experiments (summarized in Table~\ref{tab:claim_boundary}) support the following statement: inside a tested regular locally connected component, the differential lift supplies an online continuation velocity, the three-dimensional QP generates a candidate, and endpoint-aware nonlinear validation with governed backtracking can preserve accepted clearance while retaining high task progress over the tested operating range. The experiments do not establish global IK branch continuity, a branch-survival advantage over Pointwise or DLS, global topological completeness, between-sample invariance, reduced-QP speedup, or physical execution.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\caption{Final claim--evidence boundary after N9.}
+\label{tab:claim_boundary}
+\begin{tabularx}{\textwidth}{@{}p{0.24\textwidth}p{0.15\textwidth}p{0.23\textwidth}X@{}}
+\toprule
+Claim & Evidence & Allowed wording & Excluded extension \\
+\midrule
+Local differential lift & Node 0, N1--N8 & Local online continuation in a tested regular component & Global IK branch preservation \\
+Analytic Jacobian & Node 0 & Numerically validated on tested regular states & Global rank guarantee \\
+Three-variable QP & Node 0, N2--N4, N8 & Linearized candidate generator & Standalone nonlinear safety certificate \\
+Endpoint/swept checker & N2, N3, N7, N8 & Final nonlinear acceptance authority & Between-sample invariance \\
+Governor & N7, N8 & Conditional recovery and safe stopping over tested range & Feasibility or safety for every state/task \\
+Finite-step scaling & N3, N8 & Descriptive operating-range evidence & Universal second-order or curvature theorem \\
+LUT comparison & N6, N7, N8 & Measured safety/progress/latency trade-off & Online dominance or reduced-QP speedup \\
+Physical execution & None in N1--N8 & Future validation & Deployment or force-regulation claim \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{What the integrated evidence supports}
+
+The integrated N1--N8 record supports a safety-governed local online continuation framework. The local lift replaces a dense nominal lookup operation with analytic task Jacobians, a null-space phase command, and a three-variable action filter. Node 0 validates the algebra on regular states, N2--N4 establish why linear candidate generation must be followed by independent nonlinear acceptance, and N7--N8 show that endpoint-aware backtracking can recover progress on replayed and held-out states without an accepted clearance violation in the tested traces. This is the contribution supported by the present evidence.
+
+\subsection{Candidate generation is not safety acceptance}
+
+The phase-space QP is a local linearized feasibility test. A feasible point $(r_L,r_R,\beta)$ says that the first-order constraints admit a candidate; it does not certify the nonlinear endpoint or the swept segment. N2 found that 44 of 46 stopped trials per filtered formulation were endpoint mismatches rather than empty QPs. The independent endpoint/swept checker and the governor are therefore part of the method, rather than optional diagnostics. N3 and N4 further show that a finite-step margin changes the observed boundary at a measurable completion and latency cost. We do not turn the descriptive near-second-order trend into a curvature bound or a continuous-time invariance claim.
+
+\subsection{Progress, safety, and latency trade-offs}
+
+The endpoint-aware governor improves completion under the frozen 0.25-mm and 0.50-mm schedules, and the held-out matrix reproduces this behavior over the tested step sizes. The same mechanism adds attempted backtracks and can raise tail latency, especially at $\Delta t=0.01$ s. The LUT remains much faster per step, and rebuilt LUTs achieved higher completion than the online method in the N6 comparison. The appropriate interpretation is therefore a conditional trade-off: online continuation offers a table-free and auditable path through the tested local region, while LUT execution remains attractive when geometry is fixed and preprocessing is acceptable.
+
+\subsection{Branch evidence and scope}
+
+N1 was designed to test the strongest branch claim and did not produce a strict valid jump contrast. The atlas coverage and descriptor margin were insufficient to identify a fair Pointwise/DLS transition on both arms, and the near-miss descriptor change was below the frozen threshold. We retain this negative result. The paper consequently uses ``local continuation'' for a selected regular component and does not claim prevention of branch jumps, global IK-branch preservation, or global topological completeness.
+
+\subsection{Relation to deployment}
+
+The interface exposes commanded joint velocity, task-rate scale, clearance, and controller diagnostics needed for later impedance/admittance execution. The current evidence is simulation-only. Contact wrench, motor-current, tracking, and internal-force behavior must be measured in a physical workcell before the method can be described as a deployment-ready safety controller.
+
+\section{Limitations}
+\label{sec:limitations}
+
+The method has five principal limitations. First, it assumes a regular local chart and does not solve general kinematic singularity or branch-crossing problems. Second, global phase consistency is not guaranteed; $\phi_i$ is a locally integrated gauge coordinate. Third, the collision filter depends on a calibrated smooth SDF and may become conservative or unreliable at hard contact transitions. Fourth, the lift itself is kinematic: impedance/admittance tracking and internal-force monitoring are supplied by the low-level workcell controller, so force regulation is not claimed as an algorithmic contribution. Fifth, safety is enforced at the velocity and finite-step validation levels; formal continuous-discrete invariance under model uncertainty remains future work.
+
+%% =====================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented a local, safety-governed online continuation framework for bimanual rigid-grasp manipulation. The differential lift separates task motion from one self-motion rate per arm, analytic Jacobians provide the local tangent model, and a three-variable QP maps joint, limit, and clearance constraints into a candidate action. Independent nonlinear endpoint/swept validation and endpoint-aware backtracking determine whether that candidate is accepted and whether the task rate must be reduced.
+
+The integrated simulation evidence establishes the numerical contract on regular states, documents the finite-step clearance error and its safety--progress trade-off, and reproduces the governor behavior on replayed and held-out manifests. Across the N8 matrix, the governor completed 90/90 trials at $\Delta t=0.0025$ and $0.005$ s and 89/90 at $0.010$ s with no accepted endpoint or swept-clearance violation. These results support the narrower conclusion that safety-governed local online continuation is viable in the tested operating range. They do not establish global IK branch continuity, a comparative advantage over Pointwise/DLS, between-sample safety invariance, reduced-QP speedup, or physical deployment. Those claims require separate branch-complete, dynamical, computational, and hardware evidence.
+
+\appendix
+
+\section{Implementation Checklist}
+\label{app:checklist}
+
+A reproducible implementation should record the following quantities at every step:
+\begin{itemize}
+    \item translation and rotation components of $e$;
+    \item $\sigma_{\min}(A_q)$ and the damping state;
+    \item oriented null vectors and their correlation with the previous step;
+    \item horizontal terms $h_e,h_x$, nominal action $(r_{\mathrm{nom}},1)$, filtered action $(r^\star,\beta^\star)$, and tangent residual $\delta$;
+    \item active half-spaces in $\mathcal Y_{\mathrm{safe}}$;
+    \item joint, collision, and velocity margins;
+    \item step size, rejection count, and recovery-projection count;
+    \item failure code when a step or connection terminates.
+\end{itemize}
+
+\section{Planned Reproducibility Table}
+
+\begin{table}[h]
+\centering
+\caption{Parameters to freeze before final evaluation. Values marked ``measured'' are apparatus- or calibration-dependent and must be populated from the experiment log.}
+\begin{tabular}{lll}
+\toprule
+Parameter & Symbol & Value \\
+\midrule
+Control period & $\Delta t$ & measured \\
+Minimum step & $\Delta t_{\min}$ & measured \\
+Task feedback gains & $K_e$ & calibrated and frozen \\
+Velocity metric & $W$ & documented diagonal metric \\
+Phase-action metric & $R$ & documented positive-definite metric \\
+Task-rate penalty & $\lambda_\beta$ & calibrated and frozen \\
+Joint damper gain & $\alpha_q$ & calibrated and frozen \\
+Clearance damper gain & $\alpha_d$ & calibrated and frozen \\
+Safe clearance & $d_{\mathrm{safe}}$ & $5\,\mathrm{mm}$ nominal \\
+Task-rate stop threshold & $\beta_{\mathrm{stop}}$ & calibrated and frozen \\
+Tangent residual tolerance & $\bar\delta$ & declared for each task class \\
+SDF smoothing width & $\varepsilon_{\mathrm{SDF}}$ & documented geometry parameter \\
+Rank threshold & $\sigma_{\min}^{\mathrm{stop}}$ & measured/calibrated \\
+Translation tolerance & $\epsilon_p$ & process specification \\
+Rotation tolerance & $\epsilon_R$ & process specification \\
+Branch-jump threshold & $\epsilon_{\mathrm{jump}}$ & frozen validation threshold \\
+Wrench/current limits & $F_{\max},I_{\max}$ & process specification \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% =====================================================================
+\begin{thebibliography}{99}
+
+\bibitem{berenson2011}
+D. Berenson, S. Srinivasa, J. Kuffner,
+Task Space Regions: A framework for pose-constrained manipulation planning,
+\textit{The International Journal of Robotics Research} 30~(12) (2011) 1435--1460.
+
+\bibitem{jaillet2013}
+L. Jaillet, J. M. Porta,
+Path planning under kinematic constraints by rapidly exploring manifolds,
+\textit{IEEE Transactions on Robotics} 29~(1) (2013) 105--117.
+
+\bibitem{kingston2019}
+Z. Kingston, M. Moll, L. E. Kavraki,
+Exploring implicit spaces for constrained sampling-based planning,
+\textit{The International Journal of Robotics Research} 38~(10--11) (2019) 1151--1178.
+
+\bibitem{whitney1969}
+D. E. Whitney,
+Resolved motion rate control of manipulators and human prostheses,
+\textit{IEEE Transactions on Man-Machine Systems} 10~(2) (1969) 47--53.
+
+\bibitem{liegeois1977}
+A. Li\`egeois,
+Automatic supervisory control of the configuration and behavior of multibody mechanisms,
+\textit{IEEE Transactions on Systems, Man, and Cybernetics} 7~(12) (1977) 868--871.
+
+\bibitem{maciejewski1985}
+A. A. Maciejewski, C. A. Klein,
+Obstacle avoidance for kinematically redundant manipulators in dynamically varying environments,
+\textit{The International Journal of Robotics Research} 4~(3) (1985) 109--117.
+
+\bibitem{baumgarte1972}
+J. Baumgarte,
+Stabilization of constraints and integrals of motion in dynamical systems,
+\textit{Computer Methods in Applied Mechanics and Engineering} 1~(1) (1972) 1--16.
+
+\bibitem{nakamura1991}
+Y. Nakamura,
+\textit{Advanced Robotics: Redundancy and Optimization},
+Addison-Wesley, Reading, MA, 1991.
+
+\bibitem{yoshikawa1985}
+T. Yoshikawa,
+Manipulability of robotic mechanisms,
+\textit{The International Journal of Robotics Research} 4~(2) (1985) 3--9.
+
+\bibitem{nakamura1987}
+Y. Nakamura, H. Hanafusa,
+Optimal redundancy control of robot manipulators,
+\textit{The International Journal of Robotics Research} 6~(1) (1987) 32--42.
+
+\bibitem{siciliano1991}
+B. Siciliano, J.-J. E. Slotine,
+A general framework for managing multiple tasks in highly redundant robotic systems,
+\textit{Proceedings of the IEEE International Conference on Advanced Robotics} (1991) 1211--1216.
+
+\bibitem{chiaverini1997}
+S. Chiaverini,
+Singularity-robust task-priority redundancy resolution for real-time kinematic control of robot manipulators,
+\textit{IEEE Transactions on Robotics and Automation} 13~(3) (1997) 398--410.
+
+\bibitem{khatib1986}
+O. Khatib,
+Real-time obstacle avoidance for manipulators and mobile robots,
+\textit{The International Journal of Robotics Research} 5~(1) (1986) 90--98.
+
+\bibitem{hogan1985}
+N. Hogan,
+Impedance control: An approach to manipulation,
+\textit{Journal of Dynamic Systems, Measurement, and Control} 107~(1) (1985) 1--7.
+
+\bibitem{raibert1981}
+M. H. Raibert, J. J. Craig,
+Hybrid position/force control of manipulators,
+\textit{Journal of Dynamic Systems, Measurement, and Control} 103~(2) (1981) 126--133.
+
+\bibitem{siciliano2009}
+B. Siciliano, L. Sciavicco, L. Villani, G. Oriolo,
+\textit{Robotics: Modelling, Planning and Control},
+Springer, London, 2009.
+
+\bibitem{haddadin2009}
+S. Haddadin, A. Albu-Schäffer, A. De Luca, G. Hirzinger,
+Towards the robotic co-worker: Trade-offs and embodied intelligence in autonomous motion,
+\textit{The International Journal of Robotics Research} 28~(8) (2009) 1012--1027.
+
+\bibitem{flacco2015}
+F. Flacco, A. De Luca, O. Khatib,
+Control of redundant robots under hard joint constraints: Saturation in the null space,
+\textit{IEEE Transactions on Robotics} 31~(3) (2015) 637--654.
+
+\bibitem{mansard2007}
+N. Mansard, F. Chaumette,
+Task sequencing for high-level sensor-based control,
+\textit{IEEE Transactions on Robotics} 23~(1) (2007) 60--72.
+
+\bibitem{ratliff2009}
+N. Ratliff, M. Zucker, J. A. Bagnell, S. Srinivasa,
+CHOMP: Gradient optimization techniques for efficient motion planning,
+\textit{Proceedings of the IEEE International Conference on Robotics and Automation} (2009) 489--494.
+
+\bibitem{kalakrishnan2011}
+M. Kalakrishnan, S. Chitta, E. Theodorou, P. Pastor, S. Schaal,
+STOMP: Stochastic trajectory optimization for motion planning,
+\textit{Proceedings of the IEEE International Conference on Robotics and Automation} (2011) 4569--4574.
+
+\bibitem{escande2014}
+A. Escande, N. Mansard, P.-B. Wieber,
+Fast resolution of arbitrary multi-contact motion through first-order optimization,
+\textit{Proceedings of the IEEE International Conference on Robotics and Automation} (2014) 4964--4969.
+
+\bibitem{schulman2014}
+J. Schulman, J. Ho, A. X. Lee, I. Awwal, H. Bradlow, P. Abbeel,
+Motion planning with sequential convex optimization and convex collision checking,
+\textit{The International Journal of Robotics Research} 33~(9) (2014) 1251--1270.
+
+\bibitem{ames2017cbf}
+A. D. Ames, X. Xu, J. W. Grizzle, P. Tabuada,
+Control barrier function based quadratic programs for safety critical systems,
+\textit{IEEE Transactions on Automatic Control} 62~(8) (2017) 3861--3876.
+
+\bibitem{ames2019cbf}
+A. D. Ames, S. Coogan, M. Egerstedt, G. Notomista, K. Sreenath, P. Tabuada,
+Control barrier functions: Theory and applications,
+\textit{Proceedings of the 18th European Control Conference} (2019) 3420--3431.
+
+\bibitem{liu2022atacom}
+P. Liu, D. Tateo, H. Bou-Ammar, J. Peters,
+Robot reinforcement learning on the constraint manifold,
+\textit{Proceedings of the 5th Conference on Robot Learning} 164 (2022) 135--147.
+
+\bibitem{huang2022peghole}
+D.-H. Lee, M.-S. Choi, H. Park, G.-R. Jang, J.-H. Park, J.-H. Bae,
+Peg-in-hole assembly with dual-arm robot and dexterous robot hands,
+\textit{IEEE Robotics and Automation Letters} 7~(4) (2022) 8566--8573.
+
+\bibitem{alles2022centralize}
+M. Alles, E. Aljalbout,
+Learning to centralize dual-arm assembly,
+\textit{Frontiers in Robotics and AI} 9 (2022) 830007.
+
+\bibitem{liu2022assemblyreview}
+Y. Liu, Z. Wang, J. Zhang, et~al.,
+A review of robotic assembly strategies for the full operation procedure: Planning, execution and evaluation,
+\textit{Robotics and Computer-Integrated Manufacturing} 78 (2022) 102362.
+
+\bibitem{calibration2022}
+M. G. Carmichael, S. M. Dennis, D. R. McAuliffe, et~al.,
+Automatic self-contained calibration of an industrial dual-arm robot with cameras using self-contact, planar constraints, and self-observation,
+\textit{Robotics and Computer-Integrated Manufacturing} 73 (2022) 102250.
+
+\bibitem{zhao2021tworearrangement}
+J. Zhao, A. T. Miller, S. Srinivasa,
+Fast, high-quality two-arm rearrangement in synchronous, monotone tabletop setups,
+\textit{IEEE Transactions on Automation Science and Engineering} 18~(3) (2021) 888--901.
+
+\bibitem{redsdf2022}
+Y. Li, X. Qian, J. Liang, et~al.,
+Regularized deep signed distance fields for reactive motion generation,
+arXiv:2203.04739 (2022).
+
+\bibitem{isdf2022}
+J. Ortiz, A. Clegg, J. Dong, E. Sucar, D. Novotny, M. Zollhoefer, M. Mukadam,
+iSDF: Real-time neural signed distance fields for robot perception,
+\textit{Robotics: Science and Systems} (2022).
+
+\bibitem{bai2024rdf}
+Y. Li, Y. Zhang, A. Razmjoo, S. Calinon,
+Representing robot geometry as distance fields: Applications to whole-body manipulation,
+\textit{Proceedings of the IEEE International Conference on Robotics and Automation} (2024) 15351--15357.
+
+\bibitem{villani2018}
+V. Villani, F. Pini, F. Leali, C. Secchi,
+Survey on human--robot collaboration in industrial settings: Safety, intuitive interfaces and applications,
+\textit{Mechatronics} 55 (2018) 248--266.
+
+\bibitem{marvel2017}
+J. A. Marvel, R. Norcross,
+Implementing speed and separation monitoring in industrial robotics applications,
+NIST Internal Report 8155, National Institute of Standards and Technology, 2017.
+
+\bibitem{iso10218}
+International Organization for Standardization,
+\textit{ISO 10218-1:2011 Robots and Robotic Devices--Safety Requirements for Industrial Robots--Part 1: Robots},
+ISO, Geneva, 2011.
+
+\bibitem{iso15066}
+International Organization for Standardization,
+\textit{ISO/TS 15066:2016 Robots and Robotic Devices--Collaborative Robots},
+ISO, Geneva, 2016.
+
+\bibitem{deschutter1988}
+J. De Schutter, H. Van Brussel,
+Compliant robot motion I: A formalism for specifying compliant motion tasks,
+\textit{The International Journal of Robotics Research} 7~(4) (1988) 3--17.
+
+\bibitem{deits2014}
+R. Deits, R. Tedrake,
+Computing large convex regions of obstacle-free space through semidefinite programming,
+\textit{Algorithmic Foundations of Robotics XI} (2014) 109--124.
+
+\bibitem{kingston2021}
+Z. Kingston, M. Moll, L. E. Kavraki,
+Sampling-based methods for motion planning with constraints,
+\textit{Annual Review of Control, Robotics, and Autonomous Systems} 4 (2021) 1--28.
+
+\bibitem{wang2018metric}
+H. Wang, Y. Li, J. Pan, D. Manocha,
+Learning the metric of task constraint manifolds for constrained motion planning,
+\textit{Electronics} 7~(12) (2018) 395.
+
+\bibitem{kicki2023cnpb}
+P. Kicki, P. Liu, D. Tateo, H. Bou-Ammar, K. Walas, P. Skrzypczy\'nski, J. Peters,
+Fast kinodynamic planning on the constraint manifold with deep neural networks,
+\textit{IEEE Transactions on Robotics} (2023).
+
+\bibitem{toussaint2015}
+M. Toussaint,
+Logic-geometric programming: An optimization-based approach to combined task and motion planning,
+\textit{Proceedings of the Twenty-Fourth International Joint Conference on Artificial Intelligence} (2015) 1930--1936.
+
+\bibitem{moll2015}
+M. Moll, L. E. Kavraki,
+Robot motion planning in constrained spaces,
+\textit{Annual Review of Control, Robotics, and Autonomous Systems} 1 (2018) 1--26.
+
+\end{thebibliography}
+
+\end{document}

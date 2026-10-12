@@ -1,0 +1,125 @@
+{
+  "case": "h0.05_eps0.0005",
+  "pitch": 0.05,
+  "tolerance": 0.0005,
+  "seed": 42014,
+  "method": "tsr_union_4",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.0749,
+    "expected_valid_fraction": 0.07407407407407407,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.25400551076640476,
+    "mean_excess_mm": 3.89448391572902,
+    "maximum_excess_mm": 12.386512926481117,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 15,
+      "edges_checked": 15,
+      "vertices": 4,
+      "planning_seconds": 0.0006352169439196587,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": false,
+      "proposals_used": 512,
+      "accepted_proposals": 58,
+      "edges_checked": 58,
+      "vertices": 22,
+      "planning_seconds": 0.0025193759938701987,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 721,
+      "accepted_proposals": 82,
+      "edges_checked": 83,
+      "vertices": 34,
+      "planning_seconds": 0.003578693955205381,
+      "path_length_mm_equivalent": 67.06791070865336,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 4.783004987984896e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.025
+    ],
+    [
+      0.0013703324491682477,
+      -0.3993967391849315,
+      -0.019998672726086172
+    ],
+    [
+      0.0012136812870759603,
+      -0.29658114545010417,
+      -0.014854596644818072
+    ],
+    [
+      0.006059441388617931,
+      -0.23189570190629877,
+      -0.011896079602026023
+    ],
+    [
+      0.005220969420650065,
+      -0.13062002479894627,
+      -0.006790604280105973
+    ],
+    [
+      0.004382497452682198,
+      -0.029344347691593775,
+      -0.0016851289581859214
+    ],
+    [
+      0.0007842549736943732,
+      -0.0186952192572033,
+      -0.0009729630001014226
+    ],
+    [
+      -0.0035080749395442886,
+      0.05225530414538676,
+      0.002638868228226564
+    ],
+    [
+      -0.0058624101169627105,
+      0.14810160195168212,
+      0.007349414305860707
+    ],
+    [
+      -0.004217666409580256,
+      0.2468293716369258,
+      0.012301420251001075
+    ],
+    [
+      -0.0025729227021978013,
+      0.3455571413221695,
+      0.017253426196141442
+    ],
+    [
+      -0.0009281789948153464,
+      0.44428491100741324,
+      0.02220543214128181
+    ],
+    [
+      0.0,
+      0.5,
+      0.025
+    ]
+  ]
+}

@@ -1,0 +1,421 @@
+{
+  "angle": 0.8,
+  "mode": "follow",
+  "seed": 930100,
+  "scene_collision": false,
+  "success": false,
+  "status": "failed",
+  "stop_reason": "force_limit",
+  "exception": "RuntimeError('force_limit')",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 181, in run_pilot\n    peg_move(gate.start_depth - gate.travel * progress, gate.angle * progress if mode == \"follow\" else 0)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 116, in peg_move\n    move(pose * base.peg.pose.sp.inv() * base.agent.tcp.pose.sp, refine)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 111, in move\n    planner.follow_path(result, refine_steps=refine)\n  File \"/home/rocos/miniconda3/envs/maniskill_download/lib/python3.10/site-packages/mani_skill/examples/motionplanning/two_finger_gripper/motionplanner.py\", line 52, in follow_path\n    obs, reward, terminated, truncated, info = self.env.step(action)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 88, in guarded_step\n    raise RuntimeError(\"force_limit\")\nRuntimeError: force_limit\n",
+  "steps": 1076,
+  "max_force_N": 91.63589551501244,
+  "final_error_mm": 54.96886745095253,
+  "final_clearance_mm": -48.95235598087311,
+  "plan_seconds": 0.21797150350175798,
+  "wall_seconds": 4.581884350045584,
+  "plans": [
+    {
+      "phase": "reach",
+      "status": "Success",
+      "seconds": 0.029999431921169162
+    },
+    {
+      "phase": "grasp",
+      "status": "Success",
+      "seconds": 0.0035448819398880005
+    },
+    {
+      "phase": "lift",
+      "status": "Success",
+      "seconds": 0.0038950949674472213
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.004794445936568081
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0037027939688414335
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034707830054685473
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003327941056340933
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003243118990212679
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003281539073213935
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0035403469810262322
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0035232340451329947
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003412659978494048
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003404024988412857
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003235272946767509
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0032643210142850876
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0034406560007482767
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.003262127982452512
+    },
+    {
+      "phase": "align_keyed",
+      "status": "Success",
+      "seconds": 0.0032514219637960196
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0034590009599924088
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0035933509934693575
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0036071829963475466
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0036143980687484145
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0035804840736091137
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0036318888887763023
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003278524032793939
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.004569349926896393
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003391857026144862
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003460629959590733
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003313783905468881
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003594166017137468
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003354595974087715
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0034454320557415485
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0035677769919857383
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003253155038692057
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0033475758973509073
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003638786030933261
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0035329170059412718
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0034313939977437258
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.00349197699688375
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0032327959779649973
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.0033668240066617727
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003252152935601771
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.004384441999718547
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003425696981139481
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.004180384101346135
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.003555128932930529
+    },
+    {
+      "phase": "enter_key",
+      "status": "Success",
+      "seconds": 0.028821754967793822
+    }
+  ],
+  "targets": [
+    {
+      "depth": 0.132,
+      "yaw": 0
+    },
+    {
+      "depth": 0.132,
+      "yaw": 0
+    },
+    {
+      "depth": 0.131,
+      "yaw": 0
+    },
+    {
+      "depth": 0.13,
+      "yaw": 0
+    },
+    {
+      "depth": 0.129,
+      "yaw": 0
+    },
+    {
+      "depth": 0.128,
+      "yaw": 0
+    },
+    {
+      "depth": 0.127,
+      "yaw": 0
+    },
+    {
+      "depth": 0.126,
+      "yaw": 0
+    },
+    {
+      "depth": 0.125,
+      "yaw": 0
+    },
+    {
+      "depth": 0.124,
+      "yaw": 0
+    },
+    {
+      "depth": 0.123,
+      "yaw": 0
+    },
+    {
+      "depth": 0.122,
+      "yaw": 0
+    },
+    {
+      "depth": 0.121,
+      "yaw": 0.020000000000000004
+    },
+    {
+      "depth": 0.12,
+      "yaw": 0.04000000000000001
+    },
+    {
+      "depth": 0.119,
+      "yaw": 0.06000000000000001
+    },
+    {
+      "depth": 0.118,
+      "yaw": 0.08000000000000002
+    },
+    {
+      "depth": 0.11699999999999999,
+      "yaw": 0.1
+    },
+    {
+      "depth": 0.11599999999999999,
+      "yaw": 0.12000000000000002
+    },
+    {
+      "depth": 0.11499999999999999,
+      "yaw": 0.14
+    },
+    {
+      "depth": 0.11399999999999999,
+      "yaw": 0.16000000000000003
+    },
+    {
+      "depth": 0.11299999999999999,
+      "yaw": 0.18000000000000002
+    },
+    {
+      "depth": 0.11199999999999999,
+      "yaw": 0.2
+    },
+    {
+      "depth": 0.11099999999999999,
+      "yaw": 0.22000000000000003
+    },
+    {
+      "depth": 0.10999999999999999,
+      "yaw": 0.24000000000000005
+    },
+    {
+      "depth": 0.109,
+      "yaw": 0.26
+    },
+    {
+      "depth": 0.108,
+      "yaw": 0.28
+    },
+    {
+      "depth": 0.107,
+      "yaw": 0.30000000000000004
+    },
+    {
+      "depth": 0.106,
+      "yaw": 0.32000000000000006
+    },
+    {
+      "depth": 0.105,
+      "yaw": 0.3400000000000001
+    },
+    {
+      "depth": 0.104,
+      "yaw": 0.36000000000000004
+    },
+    {
+      "depth": 0.103,
+      "yaw": 0.38000000000000006
+    },
+    {
+      "depth": 0.102,
+      "yaw": 0.4
+    },
+    {
+      "depth": 0.10099999999999999,
+      "yaw": 0.42000000000000004
+    },
+    {
+      "depth": 0.09999999999999999,
+      "yaw": 0.44000000000000006
+    },
+    {
+      "depth": 0.09899999999999999,
+      "yaw": 0.4600000000000001
+    },
+    {
+      "depth": 0.09799999999999999,
+      "yaw": 0.4800000000000001
+    },
+    {
+      "depth": 0.09699999999999999,
+      "yaw": 0.5
+    },
+    {
+      "depth": 0.09599999999999999,
+      "yaw": 0.52
+    },
+    {
+      "depth": 0.09499999999999999,
+      "yaw": 0.54
+    },
+    {
+      "depth": 0.09399999999999999,
+      "yaw": 0.56
+    },
+    {
+      "depth": 0.09299999999999999,
+      "yaw": 0.5800000000000001
+    }
+  ],
+  "scene_collision_objects": 0
+}

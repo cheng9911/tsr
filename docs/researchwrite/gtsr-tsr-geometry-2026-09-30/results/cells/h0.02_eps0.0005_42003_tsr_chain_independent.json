@@ -1,0 +1,105 @@
+{
+  "case": "h0.02_eps0.0005",
+  "pitch": 0.02,
+  "tolerance": 0.0005,
+  "seed": 42003,
+  "method": "tsr_chain_independent",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.0481,
+    "expected_valid_fraction": 0.047619047619047616,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 1.0,
+    "mean_excess_mm": 6.369500744918543,
+    "maximum_excess_mm": 19.88741864702731,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 14,
+      "edges_checked": 14,
+      "vertices": 7,
+      "planning_seconds": 0.0006921200547367334,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 386,
+      "accepted_proposals": 37,
+      "edges_checked": 38,
+      "vertices": 15,
+      "planning_seconds": 0.0019071149872615933,
+      "path_length_mm_equivalent": 47.44331577471291,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 386,
+      "accepted_proposals": 37,
+      "edges_checked": 38,
+      "vertices": 15,
+      "planning_seconds": 0.0019071149872615933,
+      "path_length_mm_equivalent": 47.44331577471291,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 6.381899584084749e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      0.004380211683549677,
+      -0.3859233047231778,
+      -0.0077413272829951535
+    ],
+    [
+      0.004610428329768927,
+      -0.21754022803397216,
+      -0.0045118651246763815
+    ],
+    [
+      0.005934909815259015,
+      -0.05959043433907754,
+      -0.0010778550490999905
+    ],
+    [
+      0.0003556757188663785,
+      0.004502384847735505,
+      6.140510608482327e-06
+    ],
+    [
+      -0.004833601691648184,
+      0.08991443679884949,
+      0.0015890818235046534
+    ],
+    [
+      -0.006911101876698383,
+      0.20598619265227158,
+      0.004235842039573147
+    ],
+    [
+      -0.0036203968882073164,
+      0.3459801791085424,
+      0.006980432365868369
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "case": "h0.05_eps0.002",
+  "pitch": 0.05,
+  "tolerance": 0.002,
+  "seed": 42004,
+  "method": "tsr_union_4",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.2385,
+    "expected_valid_fraction": 0.24242424242424243,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.24857235211722875,
+    "mean_excess_mm": 3.215326622912798,
+    "maximum_excess_mm": 12.308736847744044,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 33,
+      "edges_checked": 33,
+      "vertices": 21,
+      "planning_seconds": 0.001017909962683916,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 146,
+      "accepted_proposals": 35,
+      "edges_checked": 36,
+      "vertices": 23,
+      "planning_seconds": 0.0011304619256407022,
+      "path_length_mm_equivalent": 73.23488164143548,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 146,
+      "accepted_proposals": 35,
+      "edges_checked": 36,
+      "vertices": 23,
+      "planning_seconds": 0.0011304619256407022,
+      "path_length_mm_equivalent": 73.23488164143548,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 6.040697917342186e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.025
+    ],
+    [
+      0.00034838918274664177,
+      -0.4879736927547633,
+      -0.025161945853300303
+    ],
+    [
+      0.003952084180520642,
+      -0.4139062842542421,
+      -0.0209103579780196
+    ],
+    [
+      0.003509849999762414,
+      -0.31164110506118986,
+      -0.01577303584080446
+    ],
+    [
+      0.005759467289350777,
+      -0.220417559056372,
+      -0.010930550916794752
+    ],
+    [
+      0.004942974865361295,
+      -0.1182873707026453,
+      -0.005836846735580765
+    ],
+    [
+      0.004126482441371813,
+      -0.016157182348918595,
+      -0.0007431425543667778
+    ],
+    [
+      -0.001381495425152702,
+      -0.0414404019371393,
+      -0.0029985500005734454
+    ],
+    [
+      -0.006474011327197202,
+      0.005237858661101047,
+      -0.00015156777790425622
+    ],
+    [
+      -0.00646828030622675,
+      0.11262961115450199,
+      0.004910079928342706
+    ],
+    [
+      -0.0047543652718095575,
+      0.21761141024405295,
+      0.009720842334524055
+    ],
+    [
+      -0.0053598757741553146,
+      0.30204131128854056,
+      0.015126190580493522
+    ],
+    [
+      -0.002829213716567543,
+      0.39550738468291297,
+      0.019788103638681078
+    ],
+    [
+      0.0,
+      0.5,
+      0.025
+    ]
+  ]
+}

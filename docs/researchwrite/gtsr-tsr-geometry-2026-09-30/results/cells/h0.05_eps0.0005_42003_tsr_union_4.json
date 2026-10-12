@@ -1,0 +1,125 @@
+{
+  "case": "h0.05_eps0.0005",
+  "pitch": 0.05,
+  "tolerance": 0.0005,
+  "seed": 42003,
+  "method": "tsr_union_4",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.0728,
+    "expected_valid_fraction": 0.07407407407407407,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.24640342822161004,
+    "mean_excess_mm": 3.8167629813366606,
+    "maximum_excess_mm": 12.423994584082678,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 12,
+      "edges_checked": 12,
+      "vertices": 7,
+      "planning_seconds": 0.0005996620748192072,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": false,
+      "proposals_used": 512,
+      "accepted_proposals": 45,
+      "edges_checked": 45,
+      "vertices": 22,
+      "planning_seconds": 0.0022673370549455285,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 632,
+      "accepted_proposals": 62,
+      "edges_checked": 63,
+      "vertices": 32,
+      "planning_seconds": 0.0029487820575013757,
+      "path_length_mm_equivalent": 70.68600744949363,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 4.412699490785599e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.025
+    ],
+    [
+      0.005014791044626557,
+      -0.44286224194262747,
+      -0.02218688433894148
+    ],
+    [
+      0.004470133933600911,
+      -0.3404578505688534,
+      -0.017061910661346692
+    ],
+    [
+      0.004911310528023703,
+      -0.23656315269312778,
+      -0.01195400837268513
+    ],
+    [
+      0.004231321785432831,
+      -0.1345833146884414,
+      -0.006837591981651868
+    ],
+    [
+      0.0035513330428419603,
+      -0.03260347668375502,
+      -0.001721175590618607
+    ],
+    [
+      -0.0015456751022771501,
+      -0.008151463428543448,
+      -8.320033786922074e-05
+    ],
+    [
+      -0.007312074217769968,
+      0.028453366449937303,
+      0.0011588620709711644
+    ],
+    [
+      -0.008203690296313312,
+      0.13070752691092508,
+      0.006237710244529781
+    ],
+    [
+      -0.006089541700164219,
+      0.22587679041914818,
+      0.01107288406440151
+    ],
+    [
+      -0.003975393104015125,
+      0.3210460539273713,
+      0.01590805788427324
+    ],
+    [
+      -0.0018612445078660324,
+      0.41621531743559437,
+      0.020743231704144972
+    ],
+    [
+      0.0,
+      0.5,
+      0.025
+    ]
+  ]
+}

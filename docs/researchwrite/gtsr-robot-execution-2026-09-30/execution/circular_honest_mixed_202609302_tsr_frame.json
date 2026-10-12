@@ -1,0 +1,201 @@
+{
+  "arm": "circular_honest",
+  "context": "mixed",
+  "seed": 202609302,
+  "method": "tsr_frame",
+  "status": "failed",
+  "success": false,
+  "stop_reason": "force_abort",
+  "mplib_seeded": false,
+  "exception": "RuntimeError('force_abort')",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/rocos/sia/tsr/scripts/gtsr_robot_execution.py\", line 392, in worker\n    planner.follow_path(result, refine_steps=refine)\n  File \"/home/rocos/miniconda3/envs/maniskill_download/lib/python3.10/site-packages/mani_skill/examples/motionplanning/two_finger_gripper/motionplanner.py\", line 52, in follow_path\n    obs, reward, terminated, truncated, info = self.env.step(action)\n  File \"/home/rocos/sia/tsr/scripts/gtsr_robot_execution.py\", line 293, in monitored_step\n    raise RuntimeError(\"force_abort\")\nRuntimeError: force_abort\n",
+  "env_success": false,
+  "steps": 327,
+  "final_position_error_mm": 40.646348148584366,
+  "final_axis_error_rad": 0.0464143306016922,
+  "max_net_contact_force_N": 110.09517814977505,
+  "reached_phases": [
+    -1,
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "wall_seconds": 1.1461797510273755,
+  "planning_seconds": 0.10819293605163693,
+  "planning_calls": [
+    {
+      "phase": "reach",
+      "algorithm": "screw",
+      "seconds": 0.0016381670720875263,
+      "result": "screw plan failed",
+      "within_budget": true
+    },
+    {
+      "phase": "reach",
+      "algorithm": "rrt_connect",
+      "seconds": 0.03671312902588397,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "grasp",
+      "algorithm": "screw",
+      "seconds": 0.003704650909639895,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "lift",
+      "algorithm": "screw",
+      "seconds": 0.0038357439916580915,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "align_keyed",
+      "algorithm": "screw",
+      "seconds": 0.00424712395761162,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "align_keyed",
+      "algorithm": "screw",
+      "seconds": 0.006073907017707825,
+      "result": "Success",
+      "within_budget": true
+    },
+    {
+      "phase": "enter_key",
+      "algorithm": "screw",
+      "seconds": 0.0005176611011847854,
+      "result": "screw plan failed",
+      "within_budget": true
+    },
+    {
+      "phase": "enter_key",
+      "algorithm": "rrt_connect",
+      "seconds": 0.05146255297586322,
+      "result": "Success",
+      "within_budget": true
+    }
+  ],
+  "targets": [
+    {
+      "waypoint": 0,
+      "phase": 0,
+      "rho": 1.0,
+      "candidate": 0,
+      "coordinate": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peg_target": [
+        [
+          0.9345448858478322,
+          -0.34014652214646823,
+          -0.10452846410105048,
+          -0.17106605721212428
+        ],
+        [
+          0.32502140198263,
+          0.9355231517848434,
+          -0.1384106958576485,
+          -0.010301336974521055
+        ],
+        [
+          0.14486871501089535,
+          0.09537702001119071,
+          0.9848432766003314,
+          0.2091054095528844
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "waypoint": 1,
+      "phase": 0,
+      "rho": 1.0,
+      "candidate": 0,
+      "coordinate": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peg_target": [
+        [
+          0.9345448858478322,
+          -0.34014652214646823,
+          -0.10452846410105048,
+          -0.17106605721212428
+        ],
+        [
+          0.32502140198263,
+          0.9355231517848434,
+          -0.1384106958576485,
+          -0.010301336974521055
+        ],
+        [
+          0.14486871501089535,
+          0.09537702001119071,
+          0.9848432766003314,
+          0.2091054095528844
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "waypoint": 2,
+      "phase": 1,
+      "rho": 0.0625,
+      "candidate": 0,
+      "coordinate": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peg_target": [
+        [
+          0.9345448858478322,
+          -0.34014652214646823,
+          -0.10452846410105046,
+          -0.1707524718198211
+        ],
+        [
+          0.32502140198263,
+          0.9355231517848434,
+          -0.1384106958576485,
+          -0.009886104886948133
+        ],
+        [
+          0.14486871501089535,
+          0.09537702001119071,
+          0.9848432766003314,
+          0.2061508797230834
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    }
+  ]
+}

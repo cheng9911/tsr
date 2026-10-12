@@ -1,0 +1,45 @@
+{
+  "smoke": false,
+  "a": [
+    -0.08,
+    -0.02,
+    0.0,
+    0.02,
+    0.08
+  ],
+  "rho": [
+    0.0,
+    0.0005
+  ],
+  "seeds": [
+    930501,
+    930502
+  ],
+  "weights": [
+    0.02,
+    0.1
+  ],
+  "methods": [
+    "gtsr_analytic",
+    "explicit_analytic",
+    "explicit_autodiff"
+  ],
+  "python": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+  "numpy": "1.26.4",
+  "scipy": "1.11.4",
+  "torch": "2.5.1+cu124",
+  "mpmath": "1.3.0",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+  "argv": [
+    "scripts/benchmark_gtsr_nonlinear.py",
+    "--out",
+    "docs/researchwrite/gtsr-nonlinear-operators-2026-09-30/development_v1"
+  ],
+  "torch_import_seconds": 0.6319744519423693,
+  "input_distribution": "uniform_parameter_box",
+  "shared_solver": "unmodified tsr.gtsr.projection.project",
+  "projection_starts": "lower upper midpoint",
+  "numpy_seed_policy": "matched within task/seed; method order randomized per query",
+  "ik_calls": 0,
+  "collision_checks": 0
+}

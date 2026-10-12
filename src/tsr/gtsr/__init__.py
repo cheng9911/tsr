@@ -21,8 +21,26 @@ from .profile6 import (
 from .projection import ProjectionResult
 from .region import GTSR
 from .response import ResponseOperator
+from .transfer import (
+    CoordinateRangeSupport,
+    GeneratorSemantics,
+    MatchedRelationTransfer,
+    MatchResult,
+    MatchStatus,
+    MonomialCorrespondence,
+    PiecewiseLinearPhaseMap,
+    TransferQueryResult,
+)
 
 __all__ = [
+    "CoordinateRangeSupport",
+    "GeneratorSemantics",
+    "MatchedRelationTransfer",
+    "MatchResult",
+    "MatchStatus",
+    "MonomialCorrespondence",
+    "PiecewiseLinearPhaseMap",
+    "TransferQueryResult",
     "Interval",
     "LinearInterval",
     "CircularInterval",

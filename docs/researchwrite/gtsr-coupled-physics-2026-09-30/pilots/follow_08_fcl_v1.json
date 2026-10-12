@@ -1,0 +1,29 @@
+{
+  "angle": 0.8,
+  "mode": "follow",
+  "seed": 930100,
+  "scene_collision": true,
+  "success": false,
+  "status": "failed",
+  "initial_scene_collisions": [
+    "<mplib.pymp.collision_detection.WorldCollisionResult object at 0x753c71b5c1f0>"
+  ],
+  "stop_reason": "planning_failed: IK Failed! Cannot find valid solution.",
+  "exception": "RuntimeError('planning_failed: IK Failed! Cannot find valid solution.')",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 153, in run_pilot\n    move(grasp * sapien.Pose([0, 0, -0.070]))\n  File \"/home/rocos/sia/tsr/scripts/gtsr_coupled_robot.py\", line 110, in move\n    raise RuntimeError(\"planning_failed: \" + result[\"status\"])\nRuntimeError: planning_failed: IK Failed! Cannot find valid solution.\n",
+  "steps": 0,
+  "max_force_N": 0.0,
+  "final_error_mm": 265.75174927711487,
+  "final_clearance_mm": -163.9999896287918,
+  "plan_seconds": 0.009681700030341744,
+  "wall_seconds": 0.023532576975412667,
+  "plans": [
+    {
+      "phase": "reach",
+      "status": "IK Failed! Cannot find valid solution.",
+      "seconds": 0.009681700030341744
+    }
+  ],
+  "targets": [],
+  "scene_collision_objects": 162
+}

@@ -1,0 +1,130 @@
+{
+  "case": "h0.02_eps0.002",
+  "pitch": 0.02,
+  "tolerance": 0.002,
+  "seed": 42009,
+  "method": "tsr_union_64",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.9307,
+    "expected_valid_fraction": 0.9275362318840579,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 0.01588628762541806,
+    "mean_excess_mm": 0.007241809855456394,
+    "maximum_excess_mm": 0.3030608926157218,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 89,
+      "edges_checked": 89,
+      "vertices": 51,
+      "planning_seconds": 0.0023029830772429705,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 160,
+      "accepted_proposals": 114,
+      "edges_checked": 115,
+      "vertices": 68,
+      "planning_seconds": 0.00293411104939878,
+      "path_length_mm_equivalent": 65.6915142507706,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 160,
+      "accepted_proposals": 114,
+      "edges_checked": 115,
+      "vertices": 68,
+      "planning_seconds": 0.00293411104939878,
+      "path_length_mm_equivalent": 65.6915142507706,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 4.438299220055342e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      0.0016285999152997708,
+      -0.3438245089754629,
+      -0.006624210208143013
+    ],
+    [
+      0.0034182729821265675,
+      -0.2800759408049387,
+      -0.004259019024534046
+    ],
+    [
+      0.003942291399856846,
+      -0.25521606169354183,
+      -0.0058971324210477655
+    ],
+    [
+      0.006870541874509802,
+      -0.11438799889639018,
+      -0.0038866020633320938
+    ],
+    [
+      0.007308824540589978,
+      0.051282990384489996,
+      -0.000554077602170753
+    ],
+    [
+      0.0016036570254378737,
+      0.009016815158499648,
+      0.0008035957799953871
+    ],
+    [
+      0.0008651759032300716,
+      0.05089521695957022,
+      -0.0007280976053743273
+    ],
+    [
+      -0.002886744702499439,
+      -0.08261521615432654,
+      -0.0007734664971505399
+    ],
+    [
+      -0.008240821652158958,
+      -0.02598407669481395,
+      0.0013157323344087182
+    ],
+    [
+      -0.010848180162558113,
+      0.13379828282970246,
+      0.0038105909325159247
+    ],
+    [
+      -0.008514426413975491,
+      0.2840956922933443,
+      0.007007966931463048
+    ],
+    [
+      -0.0037262698087885014,
+      0.3994028839386494,
+      0.008060289469276335
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

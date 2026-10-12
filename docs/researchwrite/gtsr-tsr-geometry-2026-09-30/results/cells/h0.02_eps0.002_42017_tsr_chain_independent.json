@@ -1,0 +1,110 @@
+{
+  "case": "h0.02_eps0.002",
+  "pitch": 0.02,
+  "tolerance": 0.002,
+  "seed": 42017,
+  "method": "tsr_chain_independent",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.1629,
+    "expected_valid_fraction": 0.16666666666666666,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 1.0,
+    "mean_excess_mm": 5.497058407340965,
+    "maximum_excess_mm": 19.93112706754168,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 35,
+      "edges_checked": 35,
+      "vertices": 16,
+      "planning_seconds": 0.0010569710284471512,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 143,
+      "accepted_proposals": 39,
+      "edges_checked": 40,
+      "vertices": 19,
+      "planning_seconds": 0.0012067840434610844,
+      "path_length_mm_equivalent": 53.26139320092008,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 143,
+      "accepted_proposals": 39,
+      "edges_checked": 40,
+      "vertices": 19,
+      "planning_seconds": 0.0012067840434610844,
+      "path_length_mm_equivalent": 53.26139320092008,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 4.427204839885235e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      -0.0007182816384276752,
+      -0.3389494629065344,
+      -0.006515674593323221
+    ],
+    [
+      0.00522600408897987,
+      -0.3119020915578326,
+      -0.006431633390619706
+    ],
+    [
+      0.004175287828845648,
+      -0.14866480457681117,
+      -0.003127965025626384
+    ],
+    [
+      0.0037897739813585723,
+      0.01014446242468911,
+      0.000498746172745675
+    ],
+    [
+      0.0025908145831306014,
+      0.0959552806875118,
+      0.002488329815036149
+    ],
+    [
+      -0.0030901420021813234,
+      0.060250438394730876,
+      0.002590044963691973
+    ],
+    [
+      -0.007754277324318602,
+      0.16878461908279385,
+      0.003284228627210034
+    ],
+    [
+      -0.004496539179272412,
+      0.30793530141086023,
+      0.006105668157871856
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

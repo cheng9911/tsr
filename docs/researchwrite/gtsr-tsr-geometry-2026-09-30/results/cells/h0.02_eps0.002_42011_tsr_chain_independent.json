@@ -1,0 +1,115 @@
+{
+  "case": "h0.02_eps0.002",
+  "pitch": 0.02,
+  "tolerance": 0.002,
+  "seed": 42011,
+  "method": "tsr_chain_independent",
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5",
+  "status": "ok",
+  "geometry": {
+    "valid_fraction": 0.1675,
+    "expected_valid_fraction": 0.16666666666666666,
+    "coverage": 1.0,
+    "false_acceptance_on_invalid_queries": 1.0,
+    "mean_excess_mm": 5.560016623369907,
+    "maximum_excess_mm": 19.898695751026636,
+    "correction_fraction": 0.0,
+    "mean_correction_mm": 0.0
+  },
+  "planning": [
+    {
+      "budget": 128,
+      "success": false,
+      "proposals_used": 128,
+      "accepted_proposals": 21,
+      "edges_checked": 21,
+      "vertices": 11,
+      "planning_seconds": 0.0008459269301965833,
+      "path_length_mm_equivalent": null,
+      "path_max_violation_m": null,
+      "dense_collision_count": null
+    },
+    {
+      "budget": 512,
+      "success": true,
+      "proposals_used": 260,
+      "accepted_proposals": 40,
+      "edges_checked": 41,
+      "vertices": 22,
+      "planning_seconds": 0.0016459299949929118,
+      "path_length_mm_equivalent": 57.689279779952,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    },
+    {
+      "budget": 2048,
+      "success": true,
+      "proposals_used": 260,
+      "accepted_proposals": 40,
+      "edges_checked": 41,
+      "vertices": 22,
+      "planning_seconds": 0.0016459299949929118,
+      "path_length_mm_equivalent": 57.689279779952,
+      "path_max_violation_m": 0.0,
+      "dense_collision_count": 0
+    }
+  ],
+  "sampler_seconds": 5.817099008709192e-05,
+  "solution": [
+    [
+      0.0,
+      -0.5,
+      -0.01
+    ],
+    [
+      -0.0018129290528993284,
+      -0.34080190673583716,
+      -0.006852992113117133
+    ],
+    [
+      0.004062744048964414,
+      -0.3170434264404521,
+      -0.005868895190714
+    ],
+    [
+      0.004267308087274147,
+      -0.15329650723599852,
+      -0.003098027255686508
+    ],
+    [
+      0.004651654488868648,
+      0.02114652512754789,
+      -0.0001885696675077461
+    ],
+    [
+      0.00038290979883217127,
+      0.0701472555035858,
+      -0.0005627911659089463
+    ],
+    [
+      -0.005520743144290662,
+      0.05042894152895888,
+      0.0003299300737595967
+    ],
+    [
+      -0.008453796222386605,
+      0.15287646322812298,
+      0.0016478052726335967
+    ],
+    [
+      -0.010098275846651952,
+      0.27641457707076483,
+      0.006070495376038799
+    ],
+    [
+      -0.004614431447527706,
+      0.3425698831617636,
+      0.007480665058949072
+    ],
+    [
+      0.0,
+      0.5,
+      0.01
+    ]
+  ]
+}

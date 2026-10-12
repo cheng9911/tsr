@@ -1,0 +1,502 @@
+{
+  "schema_version": 1,
+  "status": "TARGETS-COMPARISON-LOCKED_RETROSPECTIVE",
+  "source_repository": {
+    "root": "/home/rocos/sia/maniskill_spectrum",
+    "audited_head": "aaf29d6e15897522ffdad534d808cf089a562976",
+    "head_role": "audit base only; execution integrity is determined by the pinned evidence_snapshot SHA-256 values",
+    "head_policy": "a later descendant HEAD is allowed when every pinned dependency hash still matches; record the observed HEAD",
+    "read_only": true
+  },
+  "evidence_snapshot": "../../researchwrite/gtsr-h1-reuse/sources/reuse_audit.json",
+  "stage": "H1-R existing controlled-pose evidence reuse; H1-B bridge not implemented",
+  "targets": [
+    {
+      "pair_key": "drawer_to_plate_push",
+      "source_task": "drawer_middle_open",
+      "target_task": "plate_front_push",
+      "family": "one_axis_sliding",
+      "target_instance": {
+        "task_key": "plate_front_push",
+        "suite_name": "libero_goal",
+        "task_id": 5,
+        "language": "push the plate to the front of the stove",
+        "family": "planar_one_axis_push",
+        "oracle_selector": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nominal_pose6": [
+          0.1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "body_name": "plate_1_main",
+        "joint_name": null,
+        "free_joint_name": "plate_1_joint0",
+        "control": "free_pose",
+        "notes": "front translation tracked; lateral/vertical/rotations suppressed"
+      }
+    },
+    {
+      "pair_key": "knob_to_microwave_door",
+      "source_task": "stove_knob_turn",
+      "target_task": "microwave_door_revolute",
+      "family": "revolute_yaw",
+      "target_instance": {
+        "task_key": "microwave_door_revolute",
+        "suite_name": "libero_10",
+        "task_id": 9,
+        "language": "put the yellow and white mug in the microwave and close it",
+        "family": "revolute_door",
+        "oracle_selector": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "nominal_pose6": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          -1
+        ],
+        "body_name": "microwave_1_microdoorroot",
+        "joint_name": "microwave_1_microjoint",
+        "free_joint_name": null,
+        "control": "revolute_yaw",
+        "notes": "door hinge subtask scored as a revolute relation"
+      }
+    },
+    {
+      "pair_key": "bowl_stove_to_bowl_plate",
+      "source_task": "bowl_on_stove",
+      "target_task": "bowl_on_plate",
+      "family": "support_to_stacking",
+      "target_instance": {
+        "task_key": "bowl_on_plate",
+        "suite_name": "libero_goal",
+        "task_id": 8,
+        "language": "put the bowl on the plate",
+        "family": "stacking_support",
+        "oracle_selector": [
+          1,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "nominal_pose6": [
+          0.07,
+          -0.02,
+          0.055,
+          0,
+          0,
+          0
+        ],
+        "body_name": "akita_black_bowl_1_main",
+        "joint_name": null,
+        "free_joint_name": "akita_black_bowl_1_joint0",
+        "control": "free_pose",
+        "notes": "stacking target translation tracked; yaw free"
+      }
+    },
+    {
+      "pair_key": "bowl_stove_to_cream_cheese_bowl",
+      "source_task": "bowl_on_stove",
+      "target_task": "cream_cheese_in_bowl",
+      "family": "support_to_container",
+      "target_instance": {
+        "task_key": "cream_cheese_in_bowl",
+        "suite_name": "libero_goal",
+        "task_id": 6,
+        "language": "put the cream cheese in the bowl",
+        "family": "container_in",
+        "oracle_selector": [
+          1,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "nominal_pose6": [
+          0.07,
+          0.02,
+          0.045,
+          0,
+          0,
+          0
+        ],
+        "body_name": "cream_cheese_1_main",
+        "joint_name": null,
+        "free_joint_name": "cream_cheese_1_joint0",
+        "control": "free_pose",
+        "notes": "container-relative translation tracked; rotations suppressed"
+      }
+    },
+    {
+      "pair_key": "bowl_stove_to_wine_cabinet",
+      "source_task": "bowl_on_stove",
+      "target_task": "wine_bottle_on_cabinet",
+      "family": "cross_object_support",
+      "target_instance": {
+        "task_key": "wine_bottle_on_cabinet",
+        "suite_name": "libero_goal",
+        "task_id": 2,
+        "language": "put the wine bottle on top of the cabinet",
+        "family": "upright_support_placement",
+        "oracle_selector": [
+          1,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "nominal_pose6": [
+          0.08,
+          0,
+          0.1,
+          0,
+          0,
+          0
+        ],
+        "body_name": "wine_bottle_1_main",
+        "joint_name": null,
+        "free_joint_name": "wine_bottle_1_joint0",
+        "control": "free_pose",
+        "notes": "upright placement translation tracked; yaw ignored"
+      }
+    }
+  ],
+  "source_law": {
+    "artifact": "phase_switch_symmetry_multiseed/libero_relation_suite/libero_relation_suite_profiles.npz",
+    "sha256": "1be02ba3f905c756b40b1aa8fd70a7582904c032cd1f6f2d147712a8aeef1aa5",
+    "selection": {
+      "sample_size": 30,
+      "subset_ids": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "seeds": [
+        20260818,
+        20270818,
+        20280818
+      ]
+    },
+    "aggregation": "per source task arithmetic mean of all 18 frozen profiles, no fit",
+    "representation": "100 x 6 phase-tagged alpha grid; no theta exported; not ResponseProfile6D",
+    "total_source_profiles": 54,
+    "source_training_contexts_per_task": 59
+  },
+  "local_contract": {
+    "family_gate": "source_task,target_task must exactly match one targets[] allowlist pair; axis labels alone do not match families",
+    "twist_order": [
+      "vx",
+      "vy",
+      "vz",
+      "wx",
+      "wy",
+      "wz"
+    ],
+    "basis_source": "I6",
+    "basis_target": "I6",
+    "increment_frame_map": "I4",
+    "gamma_permutation": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "gamma_scales": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "semantic_ids": [
+      "relation_du",
+      "relation_dv",
+      "relation_dw",
+      "relation_roll",
+      "relation_pitch",
+      "relation_yaw"
+    ],
+    "frame_scope": "canonical task-local increments only; not world body frames; C0 target independently instantiated",
+    "total_tolerance": 1e-10,
+    "axis_tolerances": [
+      1e-10,
+      1e-10,
+      1e-10,
+      1e-10,
+      1e-10,
+      1e-10
+    ],
+    "historical_pose6_euler_order": "Rx(roll) Ry(pitch) Rz(yaw); differs from canonical TSR Rz Ry Rx"
+  },
+  "phase": {
+    "raw_codes": [
+      3,
+      4,
+      5,
+      6
+    ],
+    "normalized_codes": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "names": [
+      "reach",
+      "move",
+      "hold",
+      "retract"
+    ],
+    "bins_per_phase": 25,
+    "rho": "k/24, k=0..24",
+    "warp": "identity",
+    "interpolation": "none, phase-tagged frozen grid only"
+  },
+  "support": {
+    "coordinate_convention": "Log(Trans(xyz) Rx(roll) Ry(pitch) Rz(yaw))",
+    "source_condition_ids": [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74
+    ],
+    "lower": [
+      -0.011220990865312277,
+      -0.011314258570160355,
+      -0.011504182686769485,
+      -0.29541963655485454,
+      -0.258658380189524,
+      -0.5201068478482638
+    ],
+    "upper": [
+      0.011524785575398776,
+      0.012348009781344484,
+      0.011932226251258,
+      0.2532305411962473,
+      0.2929865026553072,
+      0.4966800993344109
+    ],
+    "coordinate_scales": [
+      0.011524785575398776,
+      0.012348009781344484,
+      0.011932226251258,
+      0.29541963655485454,
+      0.2929865026553072,
+      0.5201068478482638
+    ],
+    "tolerance": 1e-12,
+    "out_of_support_condition_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      9,
+      11,
+      14
+    ],
+    "kind": "source N30-ensemble union range, not distribution support",
+    "mixed_in_range": 60,
+    "mixed_total": 60,
+    "baseline_in_range": 1,
+    "isolated_in_range": 4,
+    "isolated_total": 14
+  },
+  "comparison_runs": [
+    {
+      "id": "geometry_transfer",
+      "sample_sizes": [
+        3,
+        5,
+        8
+      ],
+      "seeds": [
+        20260818,
+        20270818,
+        20280818
+      ],
+      "repeats": 1,
+      "split_seed": 20260831,
+      "methods": [
+        "Ours transfer: source Pdiag N=30 + target nominal N=1",
+        "Frame-weighted target scratch",
+        "Phase scalar GP target scratch",
+        "Pdiag finite target scratch"
+      ],
+      "rows": 180
+    },
+    {
+      "id": "geometry_transfer_tpgmm_n8",
+      "sample_sizes": [
+        8
+      ],
+      "seeds": [
+        20260818,
+        20270818,
+        20280818
+      ],
+      "repeats": 1,
+      "split_seed": 20260831,
+      "methods": [
+        "Ours transfer: source Pdiag N=30 + target nominal N=1",
+        "Frame-weighted target scratch",
+        "Phase scalar GP target scratch",
+        "Pdiag finite target scratch",
+        "TP-GMM SE(3) target scratch"
+      ],
+      "rows": 75
+    }
+  ],
+  "split_algorithm": {
+    "mixed_condition_ids": "ascending 15..74",
+    "rng": "numpy.random.default_rng(split_seed); one fresh RNG per run",
+    "loop_order": [
+      "target pair in targets order",
+      "seed in listed order",
+      "N in run sample_sizes order",
+      "repeat=0"
+    ],
+    "train_indices": "sort(rng.choice(60,size=N,replace=False))",
+    "eval_indices": "setdiff(arange(60),train_indices)",
+    "eval_count": "60-N",
+    "cross_run_pairing": false
+  },
+  "target_budget": {
+    "transfer": {
+      "nominal_trajectory": "one target condition-0 curve per target/seed",
+      "law_fit_interventions": 0,
+      "action_frame": "target task-spec nominal_pose6"
+    },
+    "frame_weighted_scratch": {
+      "nominal_trajectory": "none dedicated",
+      "law_fit_interventions": "N",
+      "reference_consumed": "metric-space intercept fitted directly from training curves and contexts"
+    },
+    "phase_scalar_gp_scratch": {
+      "nominal_trajectory": "none dedicated",
+      "law_fit_interventions": "N",
+      "reference_consumed": "Frame-weighted intercept, then GP-smoothed shared phase scalar"
+    },
+    "pdiag_finite_scratch": {
+      "nominal_trajectory": "none dedicated",
+      "law_fit_interventions": "N",
+      "action_frame": "nominal_frame recovered from target_pose and intervention",
+      "reference_consumed": "pointwise intercept initialized nominal curve; iterative model update"
+    },
+    "tpgmm_se3_scratch": {
+      "nominal_trajectory": "none dedicated",
+      "law_fit_interventions": 8,
+      "action_frame": "nominal_frame recovered from target_pose and intervention"
+    },
+    "comparison_claim": "historical pipeline/resource comparison, NOT common-nominal law-only ablation"
+  },
+  "metrics": {
+    "primary": "per pair/run/N descriptive e_task pose6 metric-scaled MSE, mean over heldout contexts x 100 phase bins x 6 components",
+    "scale": [
+      1,
+      1,
+      1,
+      0.03,
+      0.03,
+      0.03
+    ],
+    "orientation_residual": "componentwise wrapped RPY difference, not intrinsic SE3 geodesic",
+    "secondary": "e_alpha MSE to programmed selector/ramp oracle",
+    "conditional_only": "m_transfer_correct threshold 0.5 after source-selector matching assert; not independent validation",
+    "statistical_inference": "none; scored trajectories duplicate across seed labels"
+  },
+  "policies": {
+    "new_collection": false,
+    "refit": false,
+    "overwrite_upstream": false,
+    "new_seeds": false,
+    "physical_success_claim": false,
+    "raw_csv_preserved": true,
+    "failures": "retain rows, report counts; missing/hash drift halt affected reuse; do not silently exclude or replace",
+    "future_execution": "new H1-B implementation plan required"
+  }
+}

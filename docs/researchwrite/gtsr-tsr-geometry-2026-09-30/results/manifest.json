@@ -1,0 +1,111 @@
+{
+  "sources": {
+    "/home/rocos/sia/tsr/scripts/benchmark_gtsr_geometry.py": "d7e9188fca20bd9baff96fb75216648ac1af1ca156c9003d0a38c35d085cbc9a",
+    "docs/researchwrite/gtsr-tsr-geometry-2026-09-30/protocol.json": "a77aadcd80229b45fe01d425b1ba9d7bf8871fc9ed7fe65e78d8c3d27dc32082",
+    "docs/researchwrite/gtsr-tsr-geometry-2026-09-30/protocol.md": "deb83330a06893b575aa4a97cd5f0c1f43b667dc5cb42eff97cb6ac6ea14ac7e",
+    "/home/rocos/sia/tsr/src/tsr/tsr.py": "c176ee1ad9168b3e5e7c399f2156f3a0f67bc0409d592538ff43db190dc94830",
+    "/home/rocos/sia/tsr/src/tsr/tsr_chain.py": "ed231b1868950f34091ab331aeb1d3f4f86083beeeb13c782e2ef66e9747bf60",
+    "/home/rocos/sia/tsr/src/tsr/utils.py": "be1ec9351b88f892b739fbac61a485a7d1e111475e6fbc9d57aa1b0f5e4b99b3",
+    "/home/rocos/sia/tsr/src/tsr/gtsr/charts.py": "a0d914e90e8ed87780f8a36d1350506eea029439e7a381af0243b4a912e99615",
+    "/home/rocos/sia/tsr/src/tsr/gtsr/domains.py": "9750fc69e70fd7c90b60feed828bd80b5cc13c4775914bfc41966ebc20aea4d2",
+    "/home/rocos/sia/tsr/src/tsr/gtsr/region.py": "7e3fb270bc8f5ba04e40936d2c7ec8e0797fdc4e4ae8d874f67c9ecfa2ebd2e0",
+    "/home/rocos/sia/tsr/src/tsr/gtsr/metrics.py": "2e83592c6f238fe73d6036c74740be4b33731e2dd2c8e06859bee06c488649d1",
+    "/home/rocos/sia/tsr/src/tsr/gtsr/_validation.py": "ee0bdb659f2ad49aa53cfbf01f62568e9929b46452b3f96680c77aea91093adb"
+  },
+  "python": "3.11.16",
+  "numpy": "2.4.6",
+  "scipy": "1.17.1",
+  "config": {
+    "version": 1,
+    "role": "analytic and synthetic development benchmark; not robot execution",
+    "pitches_m_per_rad": [
+      0.0,
+      0.02,
+      0.05,
+      0.1
+    ],
+    "tolerances_m": [
+      0.0005,
+      0.002
+    ],
+    "q_range_rad": [
+      -0.5,
+      0.5
+    ],
+    "x_range_m": [
+      -0.012,
+      0.012
+    ],
+    "methods": [
+      "tsr_box",
+      "tsr_union_4",
+      "tsr_union_16",
+      "tsr_union_64",
+      "tsr_chain_independent",
+      "gtsr_poe",
+      "tsr_box_repaired"
+    ],
+    "seeds": [
+      42000,
+      42001,
+      42002,
+      42003,
+      42004,
+      42005,
+      42006,
+      42007,
+      42008,
+      42009,
+      42010,
+      42011,
+      42012,
+      42013,
+      42014,
+      42015,
+      42016,
+      42017,
+      42018,
+      42019
+    ],
+    "geometry_samples_per_seed": 10000,
+    "planning_proposal_budgets": [
+      128,
+      512,
+      2048
+    ],
+    "goal_bias": 0.05,
+    "metric_scale_x_q_z": [
+      1.0,
+      0.03,
+      1.0
+    ],
+    "steering_step_m_equivalent": 0.006,
+    "goal_connection_radius_m_equivalent": 0.009,
+    "configuration_obstacles_x_q": [
+      [
+        [
+          -0.012,
+          0.004
+        ],
+        [
+          -0.25,
+          -0.1
+        ]
+      ],
+      [
+        [
+          -0.004,
+          0.012
+        ],
+        [
+          0.1,
+          0.25
+        ]
+      ]
+    ],
+    "primary_statistic": "per-case success fraction over 20 algorithm seeds at each proposal budget",
+    "failure_rule": "all runs retained; budget exhaustion is failure; no post-result retuning",
+    "notes": "Bounds are analytic and tight. All methods get the same known task geometry. Repaired TSR additionally applies the exact known coupling correction; its extra operation is recorded. Proposal count is not an equal wall-time budget."
+  },
+  "run_hash": "268d3fe72866b0f4e1be02e2431cef3af3ebf92c6cfe32f93195795d7e8471c5"
+}
